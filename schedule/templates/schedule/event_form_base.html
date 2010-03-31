@@ -1,9 +1,7 @@
-{% extends "site_base.html" %}
+{% extends "schedule/base.html" %}
+
 {% block extra_head %}
     {{ block.super }}
-    <link rel="stylesheet" href="{{ MEDIA_URL }}css/jquery-ui.css" type="text/css" media="screen" />
-    <link rel="stylesheet" href="{{ MEDIA_URL }}schedule/css/schedule.css" type="text/css" media="screen" />
-    <script type="text/javascript" src="{{ MEDIA_URL }}js/jquery-ui.js"></script>
     <script type="text/javascript" src="{{ MEDIA_URL }}js/jquery.timePicker.js"></script>
     <script type="text/javascript">
     $(function() {
