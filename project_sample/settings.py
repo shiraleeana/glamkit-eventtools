@@ -3,7 +3,7 @@ import os, sys
 
 PROJECT_PATH = os.path.abspath(os.path.dirname(__file__))
 
-sys.path.insert(0, os.path.join(PROJECT_PATH, '../../schedule'))
+sys.path.insert(0, os.path.join(PROJECT_PATH, '../../events'))
 
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
@@ -85,7 +85,7 @@ INSTALLED_APPS = (
     'django.contrib.sites',
     'django.contrib.admin',
     'django.contrib.admindocs',
-    'schedule',
+    'events',
 )
 
 TEMPLATE_CONTEXT_PROCESSORS = (

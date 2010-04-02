@@ -5,7 +5,7 @@ from django.core.urlresolvers import reverse
 from django.test import Client
 
 from events.views import check_next_url, coerce_date_dict
-from events.templatetags.eventtags import querystring_for_date
+from events.templatetags.eventstags import querystring_for_date
 
 class TestViewUtils(TestCase):
 

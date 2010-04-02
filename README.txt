@@ -1,7 +1,7 @@
-Glamkit-schedule
+Glamkit-events
 ================
 
-An event management application designed for the GLAM (Galleries, Libraries, Museums and Archives) sector. It is a fork of the popular django-schedule app, featuring:
+An event management application designed for the GLAM (Galleries, Libraries, Museums and Archives) sector. It is a fork of the popular glamkit-events app, featuring:
 
  * one-time and recurring events
  * calendar exceptions (occurrences changed or cancelled)
@@ -24,7 +24,7 @@ REQUIRED
 ^^^^^^^^
 
 `INSTALLED_APPS` - add: 
-    'schedule',
+    'events',
 
 `TEMPLATE_CONTEXT_PROCESSORS` - add:
     "django.core.context_processors.request",

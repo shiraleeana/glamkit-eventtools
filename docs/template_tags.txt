@@ -2,11 +2,11 @@
 Useful Template Tags
 ====================
 
-All of the templatetags are located in templatetags/scheduletags.py. You can look at more of them there. I am only going to talk about a few here.
+All of the templatetags are located in templatetags/eventstags.py. You can look at more of them there. I am only going to talk about a few here.
 
 To load the template tags this must be in your template
 
-``{% load scheduletags %}``
+``{% load eventstags %}``
 
 ``querystring_for_date``
 ------------------------

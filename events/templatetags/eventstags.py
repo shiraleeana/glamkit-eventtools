@@ -25,7 +25,7 @@ def month_table(context,  calendar, month, size="regular", shift=None):
     context['size'] = size
     return context
 
-@register.inclusion_tag("schedule/_day_cell.html",  takes_context=True)
+@register.inclusion_tag("events/_day_cell.html",  takes_context=True)
 def day_cell(context,  calendar, day, month, size="regular" ):
     context.update({
         'calendar' : calendar,
@@ -36,7 +36,7 @@ def day_cell(context,  calendar, day, month, size="regular" ):
     return context
 
 
-@register.inclusion_tag("schedule/_daily_table.html", takes_context=True)
+@register.inclusion_tag("events/_daily_table.html", takes_context=True)
 def daily_table( context, day, width, width_slot, height, start=8, end=20, increment=30):
     """
       Display a nice table with occurrences and action buttons.
@@ -64,14 +64,14 @@ def daily_table( context, day, width, width_slot, height, start=8, end=20, incre
     context['height'] = height
     return context
 
-@register.inclusion_tag("schedule/_event_title.html", takes_context=True)
+@register.inclusion_tag("events/_event_title.html", takes_context=True)
 def title(context, occurrence ):
     context.update({
         'occurrence' : occurrence,
     })
     return context
 
-@register.inclusion_tag("schedule/_event_options.html", takes_context=True)
+@register.inclusion_tag("events/_event_options.html", takes_context=True)
 def options(context, occurrence ):
     context.update({
         'occurrence' : occurrence,
@@ -89,7 +89,7 @@ def options(context, occurrence ):
         context['edit_event'] = context['delete_event'] = ''
     return context
 
-@register.inclusion_tag("schedule/_create_event_options.html", takes_context=True)
+@register.inclusion_tag("events/_create_event_options.html", takes_context=True)
 def create_event_url(context, calendar, slot ):
     context.update ( {
         'calendar' : calendar,
@@ -185,7 +185,7 @@ def next_url(target, slug, period):
         reverse(target, kwargs=dict(calendar_slug=slug)),
             querystring_for_date(period.next().start))
 
-@register.inclusion_tag("schedule/_prevnext.html")
+@register.inclusion_tag("events/_prevnext.html")
 def prevnext( target, slug, period, fmt=None):
     if fmt is None:
         fmt = settings.DATE_FORMAT
@@ -197,7 +197,7 @@ def prevnext( target, slug, period, fmt=None):
     }
     return context
 
-@register.inclusion_tag("schedule/_detail.html")
+@register.inclusion_tag("events/_detail.html")
 def detail( occurrence ):
     context = {
         'occurrence' : occurrence,

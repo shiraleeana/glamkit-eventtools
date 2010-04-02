@@ -3,7 +3,7 @@ from django.db.models.query import QuerySet
 from django.template.defaultfilters import date
 from django.utils.translation import ugettext, ugettext_lazy as _
 from django.utils.dates import WEEKDAYS, WEEKDAYS_ABBR
-from schedule.conf.settings import FIRST_DAY_OF_WEEK, SHOW_CANCELLED_OCCURRENCES
+from events.conf.settings import FIRST_DAY_OF_WEEK, SHOW_CANCELLED_OCCURRENCES
 from events.models import Occurrence
 from events.utils import OccurrenceReplacer
 

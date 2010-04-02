@@ -22,7 +22,7 @@ Optional Arguments
 
 ``template_name``
     default
-        'schedule/calendar.html'
+        'events/calendar.html'
     
     This is the template that will be rendered
 
@@ -54,7 +54,7 @@ Optional Arguments
 
 ``template_name``
     default
-        'schedule/calendar_by_period    .html'
+        'events/calendar_by_period    .html'
     
     This is the template that will be rendered
 
@@ -78,8 +78,8 @@ Context Variables
     ::
     
         {
-            'month': <schedule.periods.Month object>
-            'day':   <schedule.periods.Day object>
+            'month': <events.periods.Month object>
+            'day':   <events.periods.Day object>
         }
 
     So in the template to access the Day period in the context you simply
@@ -114,7 +114,7 @@ Optional Arguments
 
 ``template_name``
     default
-        'schedule/calendar_by_period.html'
+        'events/calendar_by_period.html'
     
     This is the template that will be rendered
 
@@ -163,7 +163,7 @@ Optional Arguments
 
 ``template_name``
     default
-        'schedule/calendar_by_period.html'
+        'events/calendar_by_period.html'
     
     This is the template that will be rendered
 
@@ -214,7 +214,7 @@ Optional Arguments
 
 ``template_name``
     default
-        'schedule/calendar_by_period.html'
+        'events/calendar_by_period.html'
     
     This is the template that will be rendered
 
@@ -261,7 +261,7 @@ Optional Arguments
 
 ``template_name``
     default
-        'schedule/calendar_by_period.html'
+        'events/calendar_by_period.html'
     
     This is the template that will be rendered, if this view is accessed via GET
 
@@ -297,7 +297,7 @@ Optional Arguments
 
 ``template_name``
     default
-        'schedule/calendar_by_period.html'
+        'events/calendar_by_period.html'
     
     This is the template that will be rendered
 
@@ -336,7 +336,7 @@ Optional Arguments
 
 ``template_name``
     default
-        'schedule/calendar_by_period.html'
+        'events/calendar_by_period.html'
     
     This is the template that will be rendered
 

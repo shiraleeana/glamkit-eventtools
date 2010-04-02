@@ -9,7 +9,7 @@ from django.utils.translation import ugettext, ugettext_lazy as _
 from django.template.defaultfilters import slugify
 import datetime
 from dateutil import rrule
-from schedule.utils import EventListManager
+from events.utils import EventListManager
 
 class CalendarManager(models.Manager):
     """
@@ -139,7 +139,7 @@ class Calendar(models.Model):
     class Meta:
         verbose_name = _('calendar')
         verbose_name_plural = _('calendar')
-        app_label = 'schedule'
+        app_label = 'events'
 
     def __unicode__(self):
         return self.name
@@ -233,7 +233,7 @@ class CalendarRelation(models.Model):
     class Meta:
         verbose_name = _('calendar relation')
         verbose_name_plural = _('calendar relations')
-        app_label = 'schedule'
+        app_label = 'events'
 
     def __unicode__(self):
         return u'%s - %s' %(self.calendar, self.content_object)

@@ -1,4 +1,5 @@
-.. GLAMkit-events documentation master file, created by sphinx-quickstart on Mon Mar 30 15:19:11 2009.
+.. glamkit-events documentation master file, created by Thomas Ashelford
+   sphinx-quickstart on Fri Apr  2 16:27:30 2010.
 
 Welcome to GLAMkit Events’ documentation!
 ==========================================

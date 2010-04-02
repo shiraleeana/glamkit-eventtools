@@ -2,7 +2,7 @@ import datetime
 
 from django.test import TestCase
 
-from schedule.templatetags.scheduletags import querystring_for_date
+from events.templatetags.eventstags import querystring_for_date
 
 class TestTemplateTags(TestCase):
     
