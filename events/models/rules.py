@@ -38,15 +38,18 @@ class Rule(models.Model):
         ** bysecond
         ** byeaster
     """
-    name = models.CharField(_("name"), max_length=32)
-    description = models.TextField(_("description"))
-    frequency = models.CharField(_("frequency"), choices=freqs, max_length=10)
-    params = models.TextField(_("params"), null=True, blank=True)
+    name = models.CharField(_("name"), max_length=100)
+    description = models.TextField(_("description"), blank=True)
+    common = models.BooleanField()
+    frequency = models.CharField(_("frequency"), choices=freqs, max_length=10, blank=True)
+    params = models.TextField(_("inclusion parameters"), blank=True)
+    complex_rule = models.TextField(_("complex rules (over-rides all other settings)"), blank=True)
 
     class Meta:
         verbose_name = _('rule')
         verbose_name_plural = _('rules')
         app_label = 'events'
+        ordering = ('-common', 'name')
 
     def get_params(self):
         """
@@ -54,9 +57,10 @@ class Rule(models.Model):
         >>> rule.get_params()
         {'count': 1, 'byminute': [1, 2, 4, 5], 'bysecond': 1}
         """
-        if self.params is None:
+    	params = self.params
+        if params is None:
             return {}
-        params = self.params.split(';')
+        params = params.split(';')
         param_dict = []
         for param in params:
             param = param.split(':')
@@ -66,7 +70,7 @@ class Rule(models.Model):
                     param = (param[0], param[1][0])
                 param_dict.append(param)
         return dict(param_dict)
-
+        
     def __unicode__(self):
         """Human readable string for Rule"""
         return self.name

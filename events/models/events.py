@@ -1,4 +1,9 @@
-# -*- coding: utf-8 -*-
+#EventCategory
+#EventProgram
+#EventInfo
+#OccurrenceGenerator
+#Occurrence
+
 from django.contrib.contenttypes import generic
 from django.db import models
 from django.db.models import Q
@@ -10,51 +15,194 @@ from django.utils.translation import ugettext, ugettext_lazy as _
 import datetime
 from dateutil import rrule
 from events.models.rules import Rule
-from events.models.calendars import Calendar
+from events.models.exhibitions import Exhibition
+from events.models.venues import Venue
 from events.utils import OccurrenceReplacer
+from generic.models import MiscellaneousPhoto
+from settings import MARKUP_HELP
 
-class EventManager(models.Manager):
+EVENT_CATEGORY_TYPES = (
+    (1, "format"),
+    (2, "collection department"),
+    (3, "visitor group"),
+)
 
-    def get_for_object(self, content_object, distinction=None, inherit=True):
-        return EventRelation.objects.get_events_for_object(content_object, distinction, inherit)
+class EventCategoryBase(models.Model): #required
+    name = models.CharField(max_length=200)
+    short_name = models.CharField(max_length=40)
+    singular = models.CharField(max_length=40)
+    slug = models.SlugField()
+    
+    class Meta:
+        ordering = ('name',)
+        verbose_name = "Event category"
+        verbose_name_plural = "Event categories"
+        app_label = "events"
+        
+    def __unicode__(self):
+        return self.name
+        
+    @models.permalink
+    def get_absolute_url(self):
+        return ('whatson-filtered', (), {'filter': self.slug})
+    
+class EventProgram(models.Model): #required
+    name = models.CharField(max_length=200)
+    slug = models.SlugField()
+    description = models.TextField(blank=True, help_text=MARKUP_HELP)
+    contact = models.ForeignKey('generic.Contact', null=True, blank=True)
 
-class Event(models.Model):
-    '''
-    This model stores meta data for a date.  You can relate this data to many
-    other models.
-    '''
-    start = models.DateTimeField(_("start"))
-    end = models.DateTimeField(_("end"),help_text=_("The end time must be later than the start time."))
-    title = models.CharField(_("title"), max_length = 255)
-    description = models.TextField(_("description"), null = True, blank = True)
-    creator = models.ForeignKey(User, null = True, verbose_name=_("creator"))
-    created_on = models.DateTimeField(_("created on"), default = datetime.datetime.now)
-    rule = models.ForeignKey(Rule, null = True, blank = True, verbose_name=_("rule"), help_text=_("Select '----' for a one time only event."))
-    end_recurring_period = models.DateTimeField(_("end recurring period"), null = True, blank = True, help_text=_("This date is ignored for one time only events."))
-    calendar = models.ForeignKey(Calendar, blank=True)
-    objects = EventManager()
+    def __unicode__(self):
+        return self.name
 
     class Meta:
-        verbose_name = _('event')
-        verbose_name_plural = _('events')
+        app_label = "events"
+
+LANGUAGES = (
+    ('en', 'English'),
+    ('zh-cn', 'Simplified Chinese'),
+    ('ja', 'Japanese'),
+    ('ko', 'Korean'),
+)
+
+EVENT_STATUS = (
+    ('draft', 'draft'),
+    ('published', 'published'),
+    ('removed', 'removed'),
+)
+        
+class EventInfo(models.Model):
+    """
+    A class of event
+    
+    Event scheduling is handled by one or more OccurrenceGenerators
+    """
+    title = models.CharField(max_length = 255)
+    short_title = models.CharField(max_length = 255, blank=True)
+    schedule_description = models.CharField("Plain English description of schedule", max_length=255, blank=True)
+    subtitle = models.CharField(max_length=255, blank=True)
+    description = models.TextField(help_text=MARKUP_HELP)
+    venue = models.ForeignKey(Venue, blank=True, null=True)
+    status = models.CharField("status", choices=EVENT_STATUS, default="draft", max_length=10)
+    is_a_series = models.BooleanField("Has a web page")
+    primary_category = models.ForeignKey(EventCategory, related_name='primary', blank=True, null=True)
+    categories = models.ManyToManyField(EventCategory, blank=True, null=True, related_name='secondary_categories')
+    starts_at_venue = models.BooleanField("Starts at venue?")
+    program = models.ForeignKey(EventProgram, blank=True, null=True)
+    featured = models.BooleanField()
+    auslan = models.BooleanField("Presented in Auslan?")
+    exhibitions = models.ManyToManyField(Exhibition, blank=True, null=True)
+    contact = models.ForeignKey('generic.Contact', null=True, blank=True)
+    language = models.CharField(max_length=5, choices=LANGUAGES, default="en", help_text="Please note, this refers to the written (not spoken) language, so both Mandarin and Cantonese use Simplified Chinese")
+    translated_description = models.TextField(blank=True)
+    shareable = models.BooleanField(default=True)
+    photos = models.ManyToManyField(MiscellaneousPhoto, blank=True, null=True)
+    event_poster_image = models.ImageField(blank=True, upload_to="event_images/canonical/")
+    cluster_by_week = models.BooleanField()
+    society_id = models.PositiveIntegerField(blank=True, null=True)
+    plain_english_schedule = models.CharField(max_length=255, blank=True)
+
+    def _poster_image(self):
+        if self.event_poster_image:
+            return self.event_poster_image
+        if self.exhibitions.all():
+            return self.exhibitions.all()[0].poster_image
+        return None
+    poster_image = property(_poster_image)
+            
+    def primary_generator(self):
+        return self.generators.order_by('start')[0]
+    
+    def get_first_occurrence(self):
+        return self.primary_generator().start		
+        
+    def get_last_day(self):
+        lastdays = []
+        for generator in self.generators.all():
+            if not generator.end_recurring_period:
+                return False
+            lastdays.append(generator.end_recurring_period)
+        lastdays.sort()
+        return lastdays[-1]
+
+    def has_multiple_occurrences(self):
+        if self.generators.count() > 1 or (self.generators.count() > 0 and self.generators.all()[0].rule != None):
+            return '<a href="%s/occurrences/">edit / add occurrences</a>' % self.id
+        else:
+            return ""
+    has_multiple_occurrences.allow_tags = True
+    
+    def get_absolute_url(self):
+        return "/event/%s/" % self.id
+    
+    def next_occurrences(self):
+        from events.periods import Period
+        first = False
+        last = False
+        for gen in self.generators.all():
+            if not first or gen.start < first:
+                first = gen.start
+            if gen.rule and not gen.end_day:
+                last = False # at least one rule is infinite
+                break
+            if not gen.end_day:
+                genend = gen.start
+            else:
+                genend = gen.end_recurring_period
+            if not last or genend > last:
+                last = genend
+        if last:
+            period = Period(self.generators.all(), first, last)
+        else:
+            period = Period(self.generators.all(), datetime.datetime.now(), datetime.datetime.now() + datetime.timedelta(days=28))		
+        return period.get_occurrences()
+                    
+    class Meta:
+        verbose_name = 'event'
+        verbose_name_plural = 'events'
         app_label = 'events'
+        ordering = ('title',)
+
+    def __unicode__(self):
+        return self.title
+
+class OccurrenceGenerator(models.Model):
+    """
+    Defines a set of repetition rules for an event
+    """
+    info = models.ForeignKey(EventInfo, related_name = 'generators')
+    start = models.DateTimeField()
+    endtime = models.TimeField(blank=True, null=True)
+    rule = models.ForeignKey(Rule, verbose_name="Repetition rule", null = True, blank = True, help_text="Select '----' for a one time only event.")
+    end_day = models.DateField("end recurring period", null = True, blank = True, help_text="This date is ignored for one time only events.")
+
+    class Meta:
+        ordering = ('start',)
+        app_label = 'events'
+        verbose_name = 'occurrence generator'
+        verbose_name_plural = 'occurrence generators'
+
+    def _end_recurring_period(self):
+        if self.end_day:
+            return datetime.datetime.combine(self.end_day, datetime.time.max)
+        else:
+            return None	
+    end_recurring_period = property(_end_recurring_period)
+        
+    def _end(self):
+        if self.endtime:
+            return datetime.datetime.combine(self.start.date(), self.endtime)
+        else:
+            return self.start
+    end = property(_end)
 
     def __unicode__(self):
         date_format = u'l, %s' % ugettext("DATE_FORMAT")
         return ugettext('%(title)s: %(start)s-%(end)s') % {
-            'title': self.title,
+            'title': self.info.title,
             'start': date(self.start, date_format),
             'end': date(self.end, date_format),
         }
-
-    def get_absolute_url(self):
-        return reverse('event', args=[self.id])
-
-    def create_relation(self, obj, distinction = None):
-        """
-        Creates a EventRelation between self and obj.
-        """
-        EventRelation.objects.create_relation(self, obj, distinction)
 
     def get_occurrences(self, start, end):
         """
@@ -82,8 +230,7 @@ class Event(models.Model):
         for occ in occurrences:
             # replace occurrences with their persisted counterparts
             if occ_replacer.has_occurrence(occ):
-                p_occ = occ_replacer.get_occurrence(
-                        occ)
+                p_occ = occ_replacer.get_occurrence(occ)
                 # ...but only if they are within this period
                 if p_occ.start < end and p_occ.end >= start:
                     final_occurrences.append(p_occ)
@@ -96,14 +243,31 @@ class Event(models.Model):
 
     def get_rrule_object(self):
         if self.rule is not None:
+            if self.rule.complex_rule:
+                try:
+                    return rrule.rrulestr(str(self.rule.complex_rule),dtstart=self.start)
+                except:
+                    pass
             params = self.rule.get_params()
             frequency = 'rrule.%s' % self.rule.frequency
-            return rrule.rrule(eval(frequency), dtstart=self.start, **params)
+            simple_rule = rrule.rrule(eval(frequency), dtstart=self.start, **params)
+            set = rrule.rruleset()
+            set.rrule(simple_rule)
+            goodfriday = rrule.rrule(rrule.YEARLY, dtstart=self.start, byeaster=-2)
+            christmas = rrule.rrule(rrule.YEARLY, dtstart=self.start, bymonth=12, bymonthday=25)
+            set.exrule(goodfriday)
+            set.exrule(christmas)
+            return set
 
     def _create_occurrence(self, start, end=None):
         if end is None:
             end = start + (self.end - self.start)
-        return Occurrence(event=self,start=start,end=end, original_start=start, original_end=end)
+        occ = Occurrence(event=self,start=start,end=end, original_start=start, original_end=end)
+        if self.info.cluster_by_week and self != self.info.primary_generator():
+            epoch = occ.start - self.start # diff from generator start
+            prototype_date = self.info.primary_generator().start + epoch
+            occ.prototype = self.info.primary_generator().get_occurrence(prototype_date)
+        return occ
 
     def get_occurrence(self, date):
         rule = self.get_rrule_object()
@@ -142,7 +306,7 @@ class Event(models.Model):
 
     def _occurrences_after_generator(self, after=None):
         """
-        returns a generator that produces unpresisted occurrences after the
+        returns a generator that produces unpersisted occurrences after the
         datetime ``after``.
         """
 
@@ -167,7 +331,7 @@ class Event(models.Model):
     def occurrences_after(self, after=None):
         """
         returns a generator that produces occurrences after the datetime
-        ``after``.  Includes all of the persisted Occurrences.
+        ``after``.	Includes all of the persisted Occurrences.
         """
         occ_replacer = OccurrenceReplacer(self.occurrence_set.all())
         generator = self._occurrences_after_generator(after)
@@ -175,260 +339,203 @@ class Event(models.Model):
             next = generator.next()
             yield occ_replacer.get_occurrence(next)
 
-
-class EventRelationManager(models.Manager):
-    '''
-    >>> EventRelation.objects.all().delete()
-    >>> CalendarRelation.objects.all().delete()
-    >>> data = {
-    ...         'title': 'Test1',
-    ...         'start': datetime.datetime(2008, 1, 1),
-    ...         'end': datetime.datetime(2008, 1, 11)
-    ...        }
-    >>> Event.objects.all().delete()
-    >>> event1 = Event(**data)
-    >>> event1.save()
-    >>> data['title'] = 'Test2'
-    >>> event2 = Event(**data)
-    >>> event2.save()
-    >>> user1 = User(username='alice')
-    >>> user1.save()
-    >>> user2 = User(username='bob')
-    >>> user2.save()
-    >>> event1.create_relation(user1, 'owner')
-    >>> event1.create_relation(user2, 'viewer')
-    >>> event2.create_relation(user1, 'viewer')
-    '''
-    # Currently not supported
-    # Multiple level reverse lookups of generic relations appears to be
-    # unsupported in Django, which makes sense.
-    #
-    # def get_objects_for_event(self, event, model, distinction=None):
-    #     '''
-    #     returns a queryset full of instances of model, if it has an EventRelation
-    #     with event, and distinction
-    #     >>> event = Event.objects.get(title='Test1')
-    #     >>> EventRelation.objects.get_objects_for_event(event, User, 'owner')
-    #     [<User: alice>]
-    #     >>> EventRelation.objects.get_objects_for_event(event, User)
-    #     [<User: alice>, <User: bob>]
-    #     '''
-    #     if distinction:
-    #         dist_q = Q(eventrelation__distinction = distinction)
-    #     else:
-    #         dist_q = Q()
-    #     ct = ContentType.objects.get_for_model(model)
-    #     return model.objects.filter(
-    #         dist_q,
-    #         eventrelation__content_type = ct,
-    #         eventrelation__event = event
-    #     )
-
-    def get_events_for_object(self, content_object, distinction=None, inherit=True):
-        '''
-        returns a queryset full of events, that relate to the object through, the
-        distinction
-
-        If inherit is false it will not consider the calendars that the events
-        belong to. If inherit is true it will inherit all of the relations and
-        distinctions that any calendar that it belongs to has, as long as the
-        relation has inheritable set to True.  (See Calendar)
-
-        >>> event = Event.objects.get(title='Test1')
-        >>> user = User.objects.get(username = 'alice')
-        >>> EventRelation.objects.get_events_for_object(user, 'owner', inherit=False)
-        [<Event: Test1: Tuesday, Jan. 1, 2008-Friday, Jan. 11, 2008>]
-
-        If a distinction is not declared it will not vet the relations based on
-        distinction.
-        >>> EventRelation.objects.get_events_for_object(user, inherit=False)
-        [<Event: Test1: Tuesday, Jan. 1, 2008-Friday, Jan. 11, 2008>, <Event: Test2: Tuesday, Jan. 1, 2008-Friday, Jan. 11, 2008>]
-
-        Now if there is a Calendar
-        >>> calendar = Calendar(name = 'MyProject')
-        >>> calendar.save()
-
-        And an event that belongs to that calendar
-        >>> event = Event.objects.get(title='Test2')
-        >>> calendar.events.add(event)
-
-        If we relate this calendar to some object with inheritable set to true,
-        that relation will be inherited
-        >>> user = User.objects.get(username='bob')
-        >>> cr = calendar.create_relation(user, 'viewer', True)
-        >>> EventRelation.objects.get_events_for_object(user, 'viewer')
-        [<Event: Test1: Tuesday, Jan. 1, 2008-Friday, Jan. 11, 2008>, <Event: Test2: Tuesday, Jan. 1, 2008-Friday, Jan. 11, 2008>]
-        '''
-        ct = ContentType.objects.get_for_model(type(content_object))
-        if distinction:
-            dist_q = Q(eventrelation__distinction = distinction)
-            cal_dist_q = Q(calendar__calendarrelation__distinction = distinction)
-        else:
-            dist_q = Q()
-            cal_dist_q = Q()
-        if inherit:
-            inherit_q = Q(
-                cal_dist_q,
-                calendar__calendarrelation__object_id = content_object.id,
-                calendar__calendarrelation__content_type = ct,
-                calendar__calendarrelation__inheritable = True,
-            )
-        else:
-            inherit_q = Q()
-        event_q = Q(dist_q, Q(eventrelation__object_id=content_object.id),Q(eventrelation__content_type=ct))
-        return Event.objects.filter(inherit_q|event_q)
-
-    def change_distinction(self, distinction, new_distinction):
-        '''
-        This function is for change the a group of eventrelations from an old
-        distinction to a new one. It should only be used for managerial stuff.
-        It is also expensive so it should be used sparingly.
-        '''
-        for relation in self.filter(distinction = distinction):
-            relation.distinction = new_distinction
-            relation.save()
-
-    def create_relation(self, event, content_object, distinction=None):
-        """
-        Creates a relation between event and content_object.
-        See EventRelation for help on distinction.
-        """
-        ct = ContentType.objects.get_for_model(type(content_object))
-        object_id = content_object.id
-        er = EventRelation(
-            content_type = ct,
-            object_id = object_id,
-            event = event,
-            distinction = distinction,
-            content_object = content_object
-        )
-        er.save()
-        return er
-
-
-class EventRelation(models.Model):
-    '''
-    This is for relating data to an Event, there is also a distinction, so that
-    data can be related in different ways.  A good example would be, if you have
-    events that are only visible by certain users, you could create a relation
-    between events and users, with the distinction of 'visibility', or
-    'ownership'.
-
-    event: a foreign key relation to an Event model.
-    content_type: a foreign key relation to ContentType of the generic object
-    object_id: the id of the generic object
-    content_object: the generic foreign key to the generic object
-    distinction: a string representing a distinction of the relation, User could
-    have a 'veiwer' relation and an 'owner' relation for example.
-
-    DISCLAIMER: while this model is a nice out of the box feature to have, it
-    may not scale well.  If you use this keep that in mindself.
-    '''
-    event = models.ForeignKey(Event, verbose_name=_("event"))
-    content_type = models.ForeignKey(ContentType)
-    object_id = models.IntegerField()
-    content_object = generic.GenericForeignKey('content_type', 'object_id')
-    distinction = models.CharField(_("distinction"), max_length = 20, null=True)
-
-    objects = EventRelationManager()
-
-    class Meta:
-        verbose_name = _("event relation")
-        verbose_name_plural = _("event relations")
-        app_label = 'events'
-
-    def __unicode__(self):
-        return u'%s(%s)-%s' % (self.event.title, self.distinction, self.content_object)
-
-
-
-
 class Occurrence(models.Model):
-    event = models.ForeignKey(Event, verbose_name=_("event"))
-    title = models.CharField(_("title"), max_length=255, blank=True, null=True)
-    description = models.TextField(_("description"), blank=True, null=True)
+    # explicit fields
+    event = models.ForeignKey(OccurrenceGenerator)
+    original_start = models.DateTimeField(_("original start"))
+    original_end = models.DateTimeField(_("original end"))
     start = models.DateTimeField(_("start"))
     end = models.DateTimeField(_("end"))
     cancelled = models.BooleanField(_("cancelled"), default=False)
-    original_start = models.DateTimeField(_("original start"))
-    original_end = models.DateTimeField(_("original end"))
+
+    # variation fields
+    varied_title = models.CharField("Title", max_length=255, blank=True, null=True)
+    varied_subtitle = models.CharField("Subtitle", max_length=255, blank=True)
+    varied_description = models.TextField("Description", blank=True, null=True, help_text=MARKUP_HELP)
+    varied_venue = models.ForeignKey(Venue, verbose_name="venue", blank=True, null=True)
+    varied_starts_at_venue = models.BooleanField("Starts at venue?")
+    varied_featured = models.BooleanField("Featured?")
+    varied_auslan = models.BooleanField("Presented in Auslan?")
+    varied_exhibition = models.ForeignKey('events.Exhibition', verbose_name="Exhibition", blank=True, null=True)
+    varied_contact = models.ForeignKey('generic.ContactDetail', verbose_name="Contact", null=True, blank=True)
+    varied_language = models.CharField("Language", max_length=5, choices=LANGUAGES, default="en", help_text="Please note, this refers to the written (not spoken) language, so both Mandarin and Cantonese use Simplified Chinese")
+    varied_translated_description = models.TextField("Translated desription", blank=True)
+    varied_poster_image = models.ImageField(blank=True, upload_to="occurrence_images/canonical/")
+#    varied_photos = models.ManyToManyField('generic.MiscellaneousPhoto', verbose_name="Photos", blank=True, null=True)
 
     class Meta:
         verbose_name = _("occurrence")
         verbose_name_plural = _("occurrences")
         app_label = 'events'
 
-    def __init__(self, *args, **kwargs):
-        super(Occurrence, self).__init__(*args, **kwargs)
-        if self.title is None:
-            self.title = self.event.title
-        if self.description is None:
-            self.description = self.event.description
+# Jesus wept!
+# There must be a smarter, more pythonic way of doing this!
+    def title(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.title()
+        if self.varied_title:
+            return self.varied_title
+        else:
+            return self.event.info.title
 
+    def subtitle(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.subtitle()
+        if self.varied_subtitle:
+            return self.varied_subtitle
+        else:
+            return self.event.info.subtitle
 
-    def moved(self):
-        return self.original_start != self.start or self.original_end != self.end
-    moved = property(moved)
+    def description(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.description()
+        if self.varied_description:
+            return self.varied_description
+        else:
+            return self.event.info.description
+    
+    def venue(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.venue()
+        if self.varied_venue:
+            return self.varied_venue
+        else:
+            return self.event.info.venue
+    
+    def starts_at_venue(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.starts_at_venue()
+        if self.varied_starts_at_venue:
+            return self.varied_starts_at_venue
+        else:
+            return self.event.info.starts_at_venue
+    
+    def featured(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.featured()
+        if self.varied_featured:
+            return self.varied_featured
+        else:
+            return self.event.info.featured
+    
+    def auslan(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.auslan()
+        if self.varied_auslan:
+            return self.varied_auslan
+        else:
+            return self.event.info.auslan
+    
+    def exhibition(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.exhibition()
+        if self.varied_exhibition:
+            return self.varied_exhibition
+        else:
+            return self.event.info.exhibition
+    
+    def contact(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.contact()
+        if self.varied_contact:
+            return self.varied_contact
+        else:
+            return self.event.info.contact
+    
+    def language(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.language()
+        if self.varied_language:
+            return self.varied_language
+        else:
+            return self.event.info.language
+    
+    def translated_description(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.description()
+        if self.varied_translated_description:
+            return self.varied_translated_description
+        else:
+            return self.event.info.translated_description
+    
+    def poster_image(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.poster_image()
+        if self.varied_poster_image:
+            return self.varied_poster_image
+        else:
+            return self.event.info.poster_image
+    
+    def occurrence_poster_image(self):
+        if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
+            return self.prototype.varied_poster_image
+        else:
+            return self.varied_poster_image
+    
 
-    def move(self, new_start, new_end):
-        self.start = new_start
-        self.end = new_end
-        self.save()
+#     def moved(self):
+#         return self.original_start != self.start or self.original_end != self.end
+#     moved = property(moved)
+# 
+#     def move(self, new_start, new_end):
+#         self.start = new_start
+#         self.end = new_end
+#         self.save()
+# 
+#     def cancel(self):
+#         self.cancelled = True
+#         self.save()
+# 
+#     def uncancel(self):
+#         self.cancelled = False
+#         self.save()
 
-    def cancel(self):
-        self.cancelled = True
-        self.save()
-
-    def uncancel(self):
-        self.cancelled = False
-        self.save()
-
-    def get_absolute_url(self):
-        if self.pk is not None:
-            return reverse('occurrence', kwargs={'occurrence_id': self.pk,
-                'event_id': self.event.id})
-        return reverse('occurrence_by_date', kwargs={
-            'event_id': self.event.id,
-            'year': self.start.year,
-            'month': self.start.month,
-            'day': self.start.day,
-            'hour': self.start.hour,
-            'minute': self.start.minute,
-            'second': self.start.second,
-        })
-
-    def get_cancel_url(self):
-        if self.pk is not None:
-            return reverse('cancel_occurrence', kwargs={'occurrence_id': self.pk,
-                'event_id': self.event.id})
-        return reverse('cancel_occurrence_by_date', kwargs={
-            'event_id': self.event.id,
-            'year': self.start.year,
-            'month': self.start.month,
-            'day': self.start.day,
-            'hour': self.start.hour,
-            'minute': self.start.minute,
-            'second': self.start.second,
-        })
-
-    def get_edit_url(self):
-        if self.pk is not None:
-            return reverse('edit_occurrence', kwargs={'occurrence_id': self.pk,
-                'event_id': self.event.id})
-        return reverse('edit_occurrence_by_date', kwargs={
-            'event_id': self.event.id,
-            'year': self.start.year,
-            'month': self.start.month,
-            'day': self.start.day,
-            'hour': self.start.hour,
-            'minute': self.start.minute,
-            'second': self.start.second,
-        })
+#     def get_absolute_url(self):
+#         if self.pk is not None:
+#             return reverse('occurrence', kwargs={'occurrence_id': self.pk,
+#                 'event_id': self.event.id})
+#         return reverse('occurrence_by_date', kwargs={
+#             'event_id': self.event.id,
+#             'year': self.start.year,
+#             'month': self.start.month,
+#             'day': self.start.day,
+#             'hour': self.start.hour,
+#             'minute': self.start.minute,
+#             'second': self.start.second,
+#         })
+# 
+#     def get_cancel_url(self):
+#         if self.pk is not None:
+#             return reverse('cancel_occurrence', kwargs={'occurrence_id': self.pk,
+#                 'event_id': self.event.id})
+#         return reverse('cancel_occurrence_by_date', kwargs={
+#             'event_id': self.event.id,
+#             'year': self.start.year,
+#             'month': self.start.month,
+#             'day': self.start.day,
+#             'hour': self.start.hour,
+#             'minute': self.start.minute,
+#             'second': self.start.second,
+#         })
+# 
+#     def get_edit_url(self):
+#         if self.pk is not None:
+#             return reverse('edit_occurrence', kwargs={'occurrence_id': self.pk,
+#                 'event_id': self.event.id})
+#         return reverse('edit_occurrence_by_date', kwargs={
+#             'event_id': self.event.id,
+#             'year': self.start.year,
+#             'month': self.start.month,
+#             'day': self.start.day,
+#             'hour': self.start.hour,
+#             'minute': self.start.minute,
+#             'second': self.start.second,
+#         })
 
     def __unicode__(self):
-        return ugettext("%(start)s to %(end)s") % {
-            'start': self.start,
-            'end': self.end,
+        return ugettext("%(event)s: %(day)s") % {
+            'event': self.event.info.title,
+            'day': self.start.strftime('%a, %d %b %Y'),
         }
 
     def __cmp__(self, other):
