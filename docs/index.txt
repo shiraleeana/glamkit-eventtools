@@ -1,9 +1,9 @@
-.. DjangoSchedule documentation master file, created by sphinx-quickstart on Mon Mar 30 15:19:11 2009.
+.. GLAMkit-events documentation master file, created by sphinx-quickstart on Mon Mar 30 15:19:11 2009.
 
-Welcome to DjangoSchedule's documentation!
+Welcome to GLAMkit Events’ documentation!
 ==========================================
 
-DjangoSchedule is an open-source calendaring application. 
+GLAMkit Events is an open-source event calendar application. It is part of the GLAMkit framework. 
 
 .. toctree::
     :maxdepth: 1

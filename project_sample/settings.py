@@ -1,7 +1,9 @@
 # Django settings for project_sample project.
-import os
+import os, sys
 
-PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
+PROJECT_PATH = os.path.abspath(os.path.dirname(__file__))
+
+sys.path.insert(0, os.path.join(PROJECT_PATH, '../../schedule'))
 
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
@@ -38,7 +40,7 @@ USE_I18N = True
 
 # Absolute path to the directory that holds media.
 # Example: "/home/media/media.lawrence.com/"
-MEDIA_ROOT = os.path.join(PROJECT_DIR, "site_media")
+MEDIA_ROOT = os.path.join(PROJECT_PATH, "site_media")
 
 # URL that handles the media served from MEDIA_ROOT. Make sure to use a
 # trailing slash if there is a path component (optional in other cases).
@@ -73,7 +75,7 @@ TEMPLATE_DIRS = (
     # Put strings here, like "/home/html/django_templates" or "C:/www/django/templates".
     # Always use forward slashes, even on Windows.
     # Don't forget to use absolute paths, not relative paths.
-    os.path.join(PROJECT_DIR,"templates"),
+    os.path.join(PROJECT_PATH,"templates"),
 )
 
 INSTALLED_APPS = (
