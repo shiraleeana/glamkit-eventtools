@@ -1,5 +1,5 @@
 Glamkit-schedule
-===============
+================
 
 An event management application designed for the GLAM (Galleries, Libraries, Museums and Archives) sector. It is a fork of the popular django-schedule app, featuring:
 
