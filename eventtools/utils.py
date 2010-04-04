@@ -3,7 +3,7 @@ import heapq
 from django.contrib.contenttypes.models import ContentType
 from django.http import HttpResponseRedirect
 from django.conf import settings
-from events.conf.settings import CHECK_PERMISSION_FUNC
+from eventtools.conf.settings import CHECK_PERMISSION_FUNC
 
 class EventListManager(object):
     """
