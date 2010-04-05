@@ -2,46 +2,139 @@
 A Quick Overview
 ================
 
-What is an Event?
------------------
+Different institutions have event calendars of differing complexity. GLAMkit events attempts to cover all the possible scenarios. Before developing with GLAMkit events, you should spend some time :doc:`determining what sort of schedule structure you need to model </eventtools/structures>`.
 
-An event doesn't have any date or time associated with it just a rule for how it recurs. In a way it designates a set of occurrences.  A weekly staff meeting is a perfect example.  A weekly staff meeting is an event, it says what it is and how often it recurs.  Now if we were to say Tuesday's staff meeting, thats an occurrence. That is an a specific element in the set of occurrences designated by weekly staff meeting.  
 
-There is an exception, and that is the "one-time" event. If your boss calls and sets up an meeting today at 3. Thats a one-time event. Its only going to happen this one time. That doesn't mean its an occurrence. It just means that its an event which represents a set of occurrences that only has one occurrence in it.
+Events, Occurrences and OccurrenceGenerators
+--------------------------------------------
 
-What is an Occurrence?
-----------------------
+GLAMkit-events draws a distinction between **events**, and **occurrences** of those events. **Events** contain all the all the scheduling information *except* for the times and dates. **Events** know where, why and how things happen, but not when. **OccurrenceGenerators** contain all the *when* information. By combining the two, you can specify individual occurrences of an event. The best way to grasp this is with an example:
 
-An occurrence is an instance of an event.  If we have an event and it is Weekly staff meetings which occur every tuesday then next Tuesday's staff meeting is an occurrence.
+    Imagine a museum that has a tour for the blind every Sunday at 2pm. The tour always starts at the same place, costs the same amount etc. The only thing that changes is the date. You can define an event model which has field for storing all the non-time information. By making this model subclass EventBase, you get access to two 
+    
+     use an event model to store all the location, cost, and description information (the content that normally remains the same), an OccurrenceGenerator which specifies that the tour happens every Sunday at 2pm, and an occurrence model which handles each specific instance of the tour. The three model structure is handled transparently - you only need to define the event model.
+    
+This separation into 3 models allows us to do some very cool things:
+    * we can specify complex repetition rules (eg. every Sunday at 2pm, unless it happens to be Easter Sunday, or Christmas day)
+    * we can attach multiple repetition rules to the same event (eg. the same tour might also happen at 11am every weekday, except during December and January)
+    * we can specify and end date for these repetition rules, or have them repeat infinitely
+    * we can cancel or vary the timing of any specific occurrence irrespective of the underlying rules (eg. on Sunday January 17, 2010, the tour starts two hours earlier)
+    * we can store special one-off information with any occurrence (eg. on Sunday January 24, 2010, the tour includes lunch)
+    * we can access all this complexity through an intuitive Django admin interface
 
-What does persisted Occurrences mean?
--------------------------------------
+Of course we can also handle ‘one-time’ events. These are simply events with an OccurrenceGenerator that only generates one occurrence
 
-Occurrences are generated programatically. This is because we can not store all of the occurrences in the database, because there could be infinite occurrences. But we still want to be able to persist data about occurrences. Like, canceling an occurrence, moving an occurrence, storing a list of attendees with the occurrence.  This is done lazily. An occurrence is generated programatically until it needs to be saved to the database. When you use any function to get an occurrence, it will be completely transparent whether it was generated programatically or whether it is persisted (except that persisted ones will have a ``pk``).  Just treat them like they are persisted and you shouldn't run into any trouble.
+Different event structures
+--------------------------
+Let’s unpack this further by looking at some of the specific event strcutures that glamkit-events can model.
 
-What is a Rule?
----------------
+One-off Events
+^^^^^^^^^^^^^^
 
-A rule defines how and event will recur.  As of right now, there are no rules
-included with the app, so you will have to create your own. Doing this is somewhat straight forward 
+In this paradigm, each event occurs only once. 
 
-Accessing Occurrences with an Event
------------------------------------
+=====  =====  =====  =====  =====  =====  =====  =====
+..      Mon    Tue    Wed    Thu    Fri    Sat    Sun
+=====  =====  =====  =====  =====  =====  =====  =====
+9am    A      ..     ..     ..     ..     ..     ..  
+10am   ..     ..     ..     ..     ..     ..     ..  
+11am   ..     ..     ..     ..     ..     ..     .. 
+noon   ..     C      ..     ..     ..     ..     G
+1pm    ..     ..     ..     D      ..     ..     .. 
+2pm    ..     ..     ..     ..     ..     ..     .. 
+3pm    ..     ..     ..     ..     E      ..     .. 
+4pm    B      ..     ..     ..     ..     ..     .. 
+5pm    ..     ..     ..     ..     F      ..     .. 
+=====  =====  =====  =====  =====  =====  =====  =====
 
-Because some Event can recur indefinitely, you can not have a function like,
-``event.get_all_occurrences()``, because that would be an infinite list.  So, there are two ways of getting occurrences given an event.
+In the table above, events A to G each have their own database record, with their own names, descriptions, durations, and any other data that belongs to each event. You might conceivably have relationships with other tables (eg. categories, locations, prices etc.), but the temporal structure of your schedule is very straightfoward, and can be modelled with a single database table (and hence a single Django model). 
 
-``get_occurrences(start, end)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In this If these are the only seven events you have entered, then next week's schedule will be empty. 
 
-This gives you a list of all occurrences that occur inclusively after start and exclusively before end.  When we say occur, that means that they exist at all between start and end. If occurrence ends 10 seconds after ``start`` then it will be in the list, and if an occurrence starts 10 seconds before ``end`` then it will also be in the list.
+If this is how your event schedule works, you're lucky, you can build a workable schedule with a few simple Django models. Glamkit provides an EventBase model that provides a few useful methods, as well as some handy templatetags, and admin tweaks.
 
-``occurrences_after(after)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This method produces a generator that generates events inclusively after the given datetime ``after``.  If no date is given then it uses now.
+Simple Recurring Events
+^^^^^^^^^^^^^^^^^^^^^^^
 
-Accessing Occurrences from lists of Events
-------------------------------------------
+Now let's add the concepts of recurring events.
 
-You are often going to have a list of events and want to get occurrences from them.  To do this you can use Periods, and EventListManagers.
+This is where Glamkit events starts to hit its stride. As well as having a start and end time, events can also have rules that define how the event recurrs over time. 
+
+
+=====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====
+..      Mon    Tue    Wed    Thu    Fri    Sat    Sun    Mon    Tue    Wed    Thu    Fri    Sat    Sun
+=====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====
+9am    A      ..     ..     ..     ..     ..     ..     A      ..     ..     ..     ..     ..     ..  
+10am   ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+11am   B      B      B      B      B      ..     ..     B      B      B      B      B      ..     .. 
+noon   ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..
+1pm    ..     ..     ..     D      ..     ..     ..     ..     ..     ..     ..     ..     ..     .. 
+2pm    C      ..     C      ..     C      ..     C      ..     C      ..     C      ..     C      ..
+3pm    ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+4pm    ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+5pm    ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+=====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====
+
+The schedule above could be achieved as follows:
+Event A: 
+
+Complex Recurring Events
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+=====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====
+..      Mon    Tue    Wed    Thu    Fri    Sat    Sun    Mon    Tue    Wed    Thu    Fri    Sat    Sun
+=====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====
+9am    A      ..     ..     ..     ..     ..     ..     A      ..     ..     ..     ..     ..     ..  
+10am   ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+11am   B      B      B      B      B      ..     ..     B      B      B      B      B      ..     .. 
+noon   ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..
+1pm    ..     ..     ..     D      ..     ..     ..     ..     ..     ..     ..     ..     ..     .. 
+2pm    B      ..     B      ..     B      ..     B      ..     B      ..     B      ..     B      ..
+3pm    ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+4pm    ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+5pm    ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+=====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====
+
+
+Variable Occurrences
+^^^^^^^^^^^^^^^^^^^^
+
+=====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====
+..      Mon    Tue    Wed    Thu    Fri    Sat    Sun    Mon    Tue    Wed    Thu    Fri    Sat    Sun
+=====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====
+9am    A      ..     ..     ..     ..     ..     ..     A      ..     ..     ..     ..     ..     ..  
+10am   ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+11am   B      B      B      B      B      ..     ..     B      B      B      B      B      ..     .. 
+noon   ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..
+1pm    ..     ..     ..     D      ..     ..     ..     ..     ..     ..     ..     ..     ..     .. 
+2pm    C      ..     C      ..     C      ..     C      ..     ..     ..     C      ..     C      ..
+3pm    ..     ..     ..     ..     ..     ..     ..     ..     C      ..     ..     ..     ..     ..  
+4pm    ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+5pm    ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+=====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====
+
+
+
+Cascading Occurrences
+^^^^^^^^^^^^^^^^^^^^^
+
+=====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====
+..      Mon    Tue    Wed    Thu    Fri    Sat    Sun    Mon    Tue    Wed    Thu    Fri    Sat    Sun
+=====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====
+9am    A      ..     ..     ..     ..     ..     ..     A      ..     ..     ..     ..     ..     ..  
+10am   ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+11am   B      B      B      B      B      ..     ..     B      B†     B      B      B      ..     .. 
+noon   ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..
+1pm    ..     ..     ..     D      ..     ..     ..     ..     ..     ..     ..     ..     ..     .. 
+2pm    C      ..     C      ..     C      ..     C      ..     ..     ..     C      ..     C      ..
+3pm    ..     ..     ..     ..     ..     ..     ..     ..     C*     ..     ..     ..     ..     ..  
+4pm    ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+5pm    ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..     ..  
+=====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====  =====
+
+
+Persisted Occurrences
+---------------------
+
+Occurrences are generated programatically. This is because we can not store all of the occurrences in the database, because there could be infinite occurrences. But we still want to be able to persist data about occurrences. Like, cancelling an occurrence, moving an occurrence, storing a list of attendees with the occurrence.  This is done lazily. An occurrence is generated programatically until it needs to be saved to the database. When you use any function to get an occurrence, it will be completely transparent whether it was generated programatically or whether it is persisted (except that persisted ones will have a ``pk``).  Just treat them like they are persisted and you shouldn't run into any trouble.

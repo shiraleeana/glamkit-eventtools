@@ -3,12 +3,23 @@ from django.utils.translation import ugettext, ugettext_lazy as _
 from django.template.defaultfilters import date
 import datetime
 
+from django.db.models.base import ModelBase
+class EventModelBase(ModelBase):
+    def __init__(cls, name, bases, attrs):
+#         print "cls = " + repr(cls)
+#         print "name = " + name
+#         print "bases = " + repr(bases)
+#         print "attrs = " + repr(attrs)
+        super(EventModelBase, cls).__init__(cls, name, bases, attrs)
+        
 class EventBase(models.Model):
     """
-    A class of event
+    Event information minus the scheduling details
     
     Event scheduling is handled by one or more OccurrenceGenerators
     """
+    __metaclass__ = EventModelBase
+
     title = models.CharField(_("Title"), max_length = 255)
     short_title = models.CharField(_("Short title"), max_length = 255, blank=True)
     schedule_description = models.CharField(_("Plain English description of schedule"), max_length=255, blank=True)
@@ -176,24 +187,24 @@ class OccurrenceGeneratorBase(models.Model):
         }
 
     def get_occurrences(self, start, end):
-        """
-        >>> rule = Rule(frequency = "MONTHLY", name = "Monthly")
-        >>> rule.save()
-        >>> event = Event(rule=rule, start=datetime.datetime(2008,1,1), end=datetime.datetime(2008,1,2))
-        >>> event.rule
-        <Rule: Monthly>
-        >>> occurrences = event.get_occurrences(datetime.datetime(2008,1,24), datetime.datetime(2008,3,2))
-        >>> ["%s to %s" %(o.start, o.end) for o in occurrences]
-        ['2008-02-01 00:00:00 to 2008-02-02 00:00:00', '2008-03-01 00:00:00 to 2008-03-02 00:00:00']
-
-        Ensure that if an event has no rule, that it appears only once.
-
-        >>> event = Event(start=datetime.datetime(2008,1,1,8,0), end=datetime.datetime(2008,1,1,9,0))
-        >>> occurrences = event.get_occurrences(datetime.datetime(2008,1,24), datetime.datetime(2008,3,2))
-        >>> ["%s to %s" %(o.start, o.end) for o in occurrences]
-        []
-
-        """
+#         """
+#         >>> rule = Rule(frequency = "MONTHLY", name = "Monthly")
+#         >>> rule.save()
+#         >>> event = Event(rule=rule, start=datetime.datetime(2008,1,1), end=datetime.datetime(2008,1,2))
+#         >>> event.rule
+#         <Rule: Monthly>
+#         >>> occurrences = event.get_occurrences(datetime.datetime(2008,1,24), datetime.datetime(2008,3,2))
+#         >>> ["%s to %s" %(o.start, o.end) for o in occurrences]
+#         ['2008-02-01 00:00:00 to 2008-02-02 00:00:00', '2008-03-01 00:00:00 to 2008-03-02 00:00:00']
+# 
+#         Ensure that if an event has no rule, that it appears only once.
+# 
+#         >>> event = Event(start=datetime.datetime(2008,1,1,8,0), end=datetime.datetime(2008,1,1,9,0))
+#         >>> occurrences = event.get_occurrences(datetime.datetime(2008,1,24), datetime.datetime(2008,3,2))
+#         >>> ["%s to %s" %(o.start, o.end) for o in occurrences]
+#         []
+# 
+#         """
         persisted_occurrences = self.occurrence_set.all()
         occ_replacer = OccurrenceReplacer(persisted_occurrences)
         occurrences = self._get_occurrence_list(start, end)
@@ -311,7 +322,9 @@ class OccurrenceGeneratorBase(models.Model):
             yield occ_replacer.get_occurrence(next)
 
 
+        
 class OccurrenceBase(models.Model):
+
     # explicit fields
     original_start = models.DateTimeField(_("original start"))
     original_end = models.DateTimeField(_("original end"))
