@@ -6,73 +6,115 @@ from django.core.urlresolvers import reverse
 from django.db import models
 from django.db.models import get_model
 
-from eventtools.tests.events.models import TestEvent1, TestEvent2
-from eventtools.periods import Period, Month, Day
-from eventtools.utils import EventListManager
+from eventtools.tests.events.models import *
+# from eventtools.periods import Period, Month, Day
+# from eventtools.utils import EventListManager
+from datetime import date, datetime, time
 
 # from testapp.models import *
 
 
 class TestModelMetaClass(TestCase):
-#    def setUp(self):
+    def setUp(self):
+        self.Occ1 = get_model("events", "lectureeventoccurrence")
+        self.Occ2 = get_model("events", "broadcasteventoccurrence")
+        self.Occ3 = get_model("events", "lessonoccurrence")
         
-        
+        self.occs = [self.Occ1, self.Occ2, self.Occ3,]
+
+        self.Gen1 = get_model("events", "lectureeventoccurrencegenerator")
+        self.Gen2 = get_model("events", "broadcasteventoccurrencegenerator")
+        self.Gen3 = get_model("events", "lessonoccurrencegenerator")
+
+        self.gens = [self.Gen1, self.Gen2, self.Gen3,]
+    
+
     def test_model_metaclass_generation(self):
         """
         Test that when we create a subclass of EventBase, a corresponding subclass of OccurrenceBase is generated automatically.        
         """
         
-        #Assert that the models are automagically generated
-        E1O = get_model("app_name", "TestEvent1Occurrence")
-        E2O = get_model("app_name", "TestEvent2Occurrence")
+        #Test that the occurrence models are automagically generated
         
-        
-        self.assertTrue(E1O != None)
-        self.assertTrue(E2O != None)
-        
-        #Do the TestEventOccurrence models contain all the fields from the Event model?
-        
-        for event_model_pair in [(TestEvent1, E1O), (TestEvent2, E20)]:        
-            for attr_name in dir(event_model_pair[0]):
-                attr = getattr(event_model_pair[0], attr_name)
-                # if the attribute is a ModelField, then check the corresponding -Occurrence model has the equivalent field.
-                if isinstance(attr, ModelField):
-                    self.assertTrue(has_attr(event_model_pair[1], attr))
-                    
-        #sanity check: make sure TestEvent2Occurrence doesn't end up with a location field through metaclass weirdness
-        self.assertEqual(hasattr(TestEvent2Occurrence, "location"), False)
+        for occ, gen in zip(self.occs, self.gens):
+            self.assertTrue(occ != None)
+            self.assertTrue(gen != None)
+            # do the relations between classes exist?
+            self.assertTrue(isinstance(occ.generator, models.ForeignKey))
+            self.assertTrue(isinstance(gen.event, models.ForeignKey))
+            self.assertTrue(isinstance(occ.variation, models.ForeignKey))
+    
+
         
     def test_event_occurrence_attributes(self):
         """
         Test that event occurrences can override (any) field of their parent event
         """
-        te1 = TestEvent1.objects.create(location="The lecture hall", title="Lecture series on Butterflies")
+        te1 = LectureEvent.objects.create(location="The lecture hall", title="Lecture series on Butterflies")
+        
+        # one-shot generator
+        te1.generators.create(first_start_date = date(2010, 1, 1), first_start_time = time(13,00), first_end_date = None, first_end_time = time(14,00)) #no rules = this is when it's on
 
-        #standard django submodel stuff
-        self.assertTrue(hasattr(te1, "title"))
+        occ = te1.get_one_occurrence()
+
+        self.assertTrue(isinstance(occ.unvaried_event, LectureEvent))
+        self.assertEqual(occ.location, "The lecture hall")
+        self.assertTrue(occ.varied_event, None) #you have to explicitly create a variation.
+        self.assertRaises(AttributeError, occ.varied_event.location)
         
-        oe = TestEvent1Occurrence.object.create(event=te1, location="The foyer") #the location is an override here.
+        #Now make a variation
         
-        self.assertTrue(oe.location=="The foyer")
-        self.assertTrue(oe.title=="Lecture series of Butterflies")
+        occ.varied_event = LectureEventVariation.objects.create(location='The foyer')
+        
+        self.assertEqual(occ.location, "The foyer")
+        self.assertEqual(occ.title, "Lecture series of Butterflies")
+        self.assertEqual(occ.varied_event.location, "The foyer")
+        self.assertEqual(occ.unvaried_event.location, "The lecture hall")
+        self.assertRaises(Exception, occ.setattr, "location", "shouldn't be writeable")
+        
+        # now modify the variation
+        occ.varied_event.location="The meeting room" #the location is an override here.
         
         #test that if we update the original event, then eventoccurences continue to only override the things they have specifically defined.
         te1.title = "Lecture series on Lepidoptera"
         te1.save()
 
-        self.assertTrue(oe.location=="The foyer")
-        self.assertTrue(oe.title=="Lecture series on Lepidoptera")
+        self.assertTrue(occ.location=="The meeting room")
+        self.assertTrue(occ.varied_event.location=="The meeting room")
+        self.assertTrue(occ.unvaried_event.location=="The lecture hall")
+        self.assertTrue(occ.title=="Lecture series on Lepidoptera")
+        self.assertTrue(occ.unvaried_event.title=="Lecture series on Lepidoptera")
+        self.assertEqual(occ.varied_event.title, None)
         
         
-
         
-
+        
+    def test_saving(self):
+    
+        te1 = LectureEvent.objects.create(location="The lecture hall", title="Lecture series on Butterflies")
+        
+        # one-shot generator
+        te1.generators.create(first_start_date = date(2010, 1, 1), first_start_time = time(13,00), first_end_date = None, first_end_time = time(14,00)) #no rules = this is when it's on
+        occ = te1.get_one_occurrence()
+    
+        # test that saving an occurrence without a variation doesn't save an empty variation
+        num_variations1 = int(LectureEventVariation.objects.count())
+        assertTrue(isinstance(occ.varied_event, LectureEventVariation))
+        occ.save()
+        num_variations2 = int(LectureEventVariation.objects.count())
+        assertEqual(num_variation1, num_variations2)
+        
+        
+               
+        
+        
+        
 # class TestEvent(TestCase):
 #     def setUp(self):
 #         rule = Rule(frequency = "WEEKLY")
 #         rule.save()
-#         cal = Calendar(name="MyCal")
-#         cal.save()
+#         generator = OccurrenceGenerator(start = datetime(2010, 1, 1, 13), end = time(14))
+#     def setUp(self):
 #         self.recurring_data = {
 #                 'title': 'Recent Event',
 #                 'start': datetime.datetime(2008, 1, 5, 8, 0),

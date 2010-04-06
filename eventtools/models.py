@@ -4,162 +4,20 @@ from django.template.defaultfilters import date
 import datetime
 
 from django.db.models.base import ModelBase
-class EventModelBase(ModelBase):
-    def __init__(cls, name, bases, attrs):
-#         print "cls = " + repr(cls)
-#         print "name = " + name
-#         print "bases = " + repr(bases)
-#         print "attrs = " + repr(attrs)
-        super(EventModelBase, cls).__init__(cls, name, bases, attrs)
-        
-class EventBase(models.Model):
-    """
-    Event information minus the scheduling details
-    
-    Event scheduling is handled by one or more OccurrenceGenerators
-    """
-    __metaclass__ = EventModelBase
-
-    title = models.CharField(_("Title"), max_length = 255)
-    short_title = models.CharField(_("Short title"), max_length = 255, blank=True)
-    schedule_description = models.CharField(_("Plain English description of schedule"), max_length=255, blank=True)
-
-    class Meta:
-        abstract = True
-
-    def primary_generator(self):
-        return self.generators.order_by('start')[0]
-    
-    def get_first_occurrence(self):
-        return self.primary_generator().start		
-        
-    def get_last_day(self):
-        lastdays = []
-        for generator in self.generators.all():
-            if not generator.end_recurring_period:
-                return False
-            lastdays.append(generator.end_recurring_period)
-        lastdays.sort()
-        return lastdays[-1]
-
-    def has_multiple_occurrences(self):
-        if self.generators.count() > 1 or (self.generators.count() > 0 and self.generators.all()[0].rule != None):
-            return '<a href="%s/occurrences/">edit / add occurrences</a>' % self.id
-        else:
-            return ""
-    has_multiple_occurrences.allow_tags = True
-    
-    def get_absolute_url(self):
-        return "/event/%s/" % self.id
-    
-    def next_occurrences(self):
-        from events.periods import Period
-        first = False
-        last = False
-        for gen in self.generators.all():
-            if not first or gen.start < first:
-                first = gen.start
-            if gen.rule and not gen.end_day:
-                last = False # at least one rule is infinite
-                break
-            if not gen.end_day:
-                genend = gen.start
-            else:
-                genend = gen.end_recurring_period
-            if not last or genend > last:
-                last = genend
-        if last:
-            period = Period(self.generators.all(), first, last)
-        else:
-            period = Period(self.generators.all(), datetime.datetime.now(), datetime.datetime.now() + datetime.timedelta(days=28))		
-        return period.get_occurrences()
-
-freqs = (   ("YEARLY", _("Yearly")),
-            ("MONTHLY", _("Monthly")),
-            ("WEEKLY", _("Weekly")),
-            ("DAILY", _("Daily")),
-            ("HOURLY", _("Hourly")),
-            ("MINUTELY", _("Minutely")),
-            ("SECONDLY", _("Secondly")))
-
-class Rule(models.Model):
-    """
-    This defines a rule by which an event will recur.  This is defined by the
-    rrule in the dateutil documentation.
-
-    * name - the human friendly name of this kind of recursion.
-    * description - a short description describing this type of recursion.
-    * frequency - the base recurrence period
-    * param - extra params required to define this type of recursion. The params
-      should follow this format:
-
-        param = [rruleparam:value;]*
-        rruleparam = see list below
-        value = int[,int]*
-
-      The options are: (documentation for these can be found at
-      http://labix.org/python-dateutil#head-470fa22b2db72000d7abe698a5783a46b0731b57)
-        ** count
-        ** bysetpos
-        ** bymonth
-        ** bymonthday
-        ** byyearday
-        ** byweekno
-        ** byweekday
-        ** byhour
-        ** byminute
-        ** bysecond
-        ** byeaster
-    """
-    name = models.CharField(_("name"), max_length=100)
-    description = models.TextField(_("description"), blank=True)
-    common = models.BooleanField()
-    frequency = models.CharField(_("frequency"), choices=freqs, max_length=10, blank=True)
-    params = models.TextField(_("inclusion parameters"), blank=True)
-    complex_rule = models.TextField(_("complex rules (over-rides all other settings)"), blank=True)
-
-    class Meta:
-        verbose_name = _('rule')
-        verbose_name_plural = _('rules')
-        ordering = ('-common', 'name')
-
-    def get_params(self):
-        """
-        >>> rule = Rule(params = "count:1;bysecond:1;byminute:1,2,4,5")
-        >>> rule.get_params()
-        {'count': 1, 'byminute': [1, 2, 4, 5], 'bysecond': 1}
-        """
-    	params = self.params
-        if params is None:
-            return {}
-        params = params.split(';')
-        param_dict = []
-        for param in params:
-            param = param.split(':')
-            if len(param) == 2:
-                param = (str(param[0]), [int(p) for p in param[1].split(',')])
-                if len(param[1]) == 1:
-                    param = (param[0], param[1][0])
-                param_dict.append(param)
-        return dict(param_dict)
-        
-    def __unicode__(self):
-        """Human readable string for Rule"""
-        return self.name
 
 class OccurrenceGeneratorBase(models.Model):
     """
     Defines a set of repetition rules for an event
-    
-    TO DO: implement without requiring subclass
     """
-    start = models.DateTimeField()
-    endtime = models.TimeField(blank=True, null=True)
-    rule = models.ForeignKey(Rule, verbose_name="Repetition rule", null = True, blank = True, help_text="Select '----' for a one time only event.")
-    end_day = models.DateField("end recurring period", null = True, blank = True, help_text="This date is ignored for one time only events.")
+    first_start_date = models.DateField()
+    first_start_time = models.TimeField()
+    first_end_date = models.DateField(null = True, blank = True)
+    first_end_time = models.TimeField(null = True, blank = True)
+    rule = models.ForeignKey('Rule', verbose_name="Repetition rule", null = True, blank = True, help_text="Select '----' for a one-off event.")
+    repeat_until = models.DateTimeField(null = True, blank = True, help_text="This date is ignored for one-off events.")
 
     class Meta:
-        ordering = ('start',)
+        ordering = ('first_start_date', 'first_start_time')
         abstract = True
         verbose_name = 'occurrence generator'
         verbose_name_plural = 'occurrence generators'
@@ -170,6 +28,24 @@ class OccurrenceGeneratorBase(models.Model):
         else:
             return None	
     end_recurring_period = property(_end_recurring_period)
+
+    # for backwards compatibility    
+    def _get_start(self):
+        return datetime(self.first_start_date, self.first_start_time)
+
+    def _set_start(self, value):
+        self.first_start_date = value.date
+        self.first_start_time = value.time
+        
+    start = property(_get_start, _set_start)
+    
+    def _get_end_time(self):
+        return self.first_end_time
+        
+    def _set_end_time(self, value):
+        self.first_end_time = value
+    
+    end_time = property(_get_end_time, _set_end_time)    
         
     def _end(self):
         if self.endtime:
@@ -222,6 +98,10 @@ class OccurrenceGeneratorBase(models.Model):
         # fall within it
         final_occurrences += occ_replacer.get_additional_occurrences(start, end)
         return final_occurrences
+        
+    def occurrence_model(self):
+        model_name = self.__class__.__name__[0:-len("Generator")].lower()
+        return = models.get_model(self._meta.app_label, model_name)
 
     def get_rrule_object(self):
         if self.rule is not None:
@@ -244,11 +124,15 @@ class OccurrenceGeneratorBase(models.Model):
     def _create_occurrence(self, start, end=None):
         if end is None:
             end = start + (self.end - self.start)
-        occ = Occurrence(event=self,start=start,end=end, original_start=start, original_end=end)
-        if self.info.cluster_by_week and self != self.info.primary_generator():
-            epoch = occ.start - self.start # diff from generator start
-            prototype_date = self.info.primary_generator().start + epoch
-            occ.prototype = self.info.primary_generator().get_occurrence(prototype_date)
+        occ = Occurrence(generator__event=self,start=start,end=end, original_start=start, original_end=end)
+        return occ
+    
+    def get_one_occurrence(self):
+        try:
+            occ = self.occurrence_model().objects.filter(generator__event=self)[0]
+        except IndexError:
+            now = datetime.datetime.now()
+            occ = self.occurrence_model()(generator=self, varied_start_date=now.date, varied_start_time=now.time, varied_end_date=now.date, varied_end_time=now.time, unvaried_start_date=now.date, unvaried_start_time=now.time, unvaried_end_date=now.date, unvaried_end_time=now.time)
         return occ
 
     def get_occurrence(self, date):
@@ -322,139 +206,25 @@ class OccurrenceGeneratorBase(models.Model):
             yield occ_replacer.get_occurrence(next)
 
 
-        
 class OccurrenceBase(models.Model):
 
     # explicit fields
-    original_start = models.DateTimeField(_("original start"))
-    original_end = models.DateTimeField(_("original end"))
-    start = models.DateTimeField(_("start"))
-    end = models.DateTimeField(_("end"))
+    varied_start_date = models.DateField(blank=True, null=True, db_index=True)
+    varied_start_time = models.TimeField(blank=True, null=True, db_index=True)
+    varied_end_date = models.DateField(blank=True, null=True, db_index=True)
+    varied_end_time = models.TimeField(blank=True, null=True, db_index=True)
+    unvaried_start_date = models.DateField(db_index=True)
+    unvaried_start_time = models.TimeField(db_index=True)
+    unvaried_end_date = models.DateField(db_index=True)
+    unvaried_end_time = models.TimeField(db_index=True)
     cancelled = models.BooleanField(_("cancelled"), default=False)
-
-#     # variation fields
-#     varied_title = models.CharField("Title", max_length=255, blank=True, null=True)
-#     varied_subtitle = models.CharField("Subtitle", max_length=255, blank=True)
-#     varied_description = models.TextField("Description", blank=True, null=True, help_text=MARKUP_HELP)
-#     varied_venue = models.ForeignKey(Venue, verbose_name="venue", blank=True, null=True)
-#     varied_starts_at_venue = models.BooleanField("Starts at venue?")
-#     varied_featured = models.BooleanField("Featured?")
-#     varied_auslan = models.BooleanField("Presented in Auslan?")
-#     varied_exhibition = models.ForeignKey('whats_on.Exhibition', verbose_name="Exhibition", blank=True, null=True)
-#     varied_contact = models.ForeignKey('generic.ContactDetail', verbose_name="Contact", null=True, blank=True)
-#     varied_language = models.CharField("Language", max_length=5, choices=LANGUAGES, default="en", help_text="Please note, this refers to the written (not spoken) language, so both Mandarin and Cantonese use Simplified Chinese")
-#     varied_translated_description = models.TextField("Translated desription", blank=True)
-#     varied_poster_image = models.ImageField(blank=True, upload_to="occurrence_images/canonical/")
-# #    varied_photos = models.ManyToManyField('generic.MiscellaneousPhoto', verbose_name="Photos", blank=True, null=True)
 
     class Meta:
         verbose_name = _("occurrence")
         verbose_name_plural = _("occurrences")
+        abstract = True
+        unique_together = ('unvaried_start_date', 'unvaried_start_time', 'unvaried_end_date', 'unvaried_end_time')
 
-# # Jesus wept!
-# # There must be a smarter, more pythonic way of doing this!
-#     def title(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.title()
-#         if self.varied_title:
-#             return self.varied_title
-#         else:
-#             return self.event.info.title
-# 
-#     def subtitle(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.subtitle()
-#         if self.varied_subtitle:
-#             return self.varied_subtitle
-#         else:
-#             return self.event.info.subtitle
-# 
-#     def description(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.description()
-#         if self.varied_description:
-#             return self.varied_description
-#         else:
-#             return self.event.info.description
-#     
-#     def venue(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.venue()
-#         if self.varied_venue:
-#             return self.varied_venue
-#         else:
-#             return self.event.info.venue
-#     
-#     def starts_at_venue(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.starts_at_venue()
-#         if self.varied_starts_at_venue:
-#             return self.varied_starts_at_venue
-#         else:
-#             return self.event.info.starts_at_venue
-#     
-#     def featured(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.featured()
-#         if self.varied_featured:
-#             return self.varied_featured
-#         else:
-#             return self.event.info.featured
-#     
-#     def auslan(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.auslan()
-#         if self.varied_auslan:
-#             return self.varied_auslan
-#         else:
-#             return self.event.info.auslan
-#     
-#     def exhibition(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.exhibition()
-#         if self.varied_exhibition:
-#             return self.varied_exhibition
-#         else:
-#             return self.event.info.exhibition
-#     
-#     def contact(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.contact()
-#         if self.varied_contact:
-#             return self.varied_contact
-#         else:
-#             return self.event.info.contact
-#     
-#     def language(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.language()
-#         if self.varied_language:
-#             return self.varied_language
-#         else:
-#             return self.event.info.language
-#     
-#     def translated_description(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.description()
-#         if self.varied_translated_description:
-#             return self.varied_translated_description
-#         else:
-#             return self.event.info.translated_description
-#     
-#     def poster_image(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.poster_image()
-#         if self.varied_poster_image:
-#             return self.varied_poster_image
-#         else:
-#             return self.event.info.poster_image
-#     
-#     def occurrence_poster_image(self):
-#         if self.event.info.cluster_by_week and self.event != self.event.info.primary_generator():
-#             return self.prototype.varied_poster_image
-#         else:
-#             return self.varied_poster_image
-#     
 # 
 #     def moved(self):
 #         return self.original_start != self.start or self.original_end != self.end
@@ -473,47 +243,6 @@ class OccurrenceBase(models.Model):
 #         self.cancelled = False
 #         self.save()
 
-#     def get_absolute_url(self):
-#         if self.pk is not None:
-#             return reverse('occurrence', kwargs={'occurrence_id': self.pk,
-#                 'event_id': self.event.id})
-#         return reverse('occurrence_by_date', kwargs={
-#             'event_id': self.event.id,
-#             'year': self.start.year,
-#             'month': self.start.month,
-#             'day': self.start.day,
-#             'hour': self.start.hour,
-#             'minute': self.start.minute,
-#             'second': self.start.second,
-#         })
-# 
-#     def get_cancel_url(self):
-#         if self.pk is not None:
-#             return reverse('cancel_occurrence', kwargs={'occurrence_id': self.pk,
-#                 'event_id': self.event.id})
-#         return reverse('cancel_occurrence_by_date', kwargs={
-#             'event_id': self.event.id,
-#             'year': self.start.year,
-#             'month': self.start.month,
-#             'day': self.start.day,
-#             'hour': self.start.hour,
-#             'minute': self.start.minute,
-#             'second': self.start.second,
-#         })
-# 
-#     def get_edit_url(self):
-#         if self.pk is not None:
-#             return reverse('edit_occurrence', kwargs={'occurrence_id': self.pk,
-#                 'event_id': self.event.id})
-#         return reverse('edit_occurrence_by_date', kwargs={
-#             'event_id': self.event.id,
-#             'year': self.start.year,
-#             'month': self.start.month,
-#             'day': self.start.day,
-#             'hour': self.start.hour,
-#             'minute': self.start.minute,
-#             'second': self.start.second,
-#         })
 
     def __unicode__(self):
         return ugettext("%(event)s: %(day)s") % {
@@ -529,3 +258,180 @@ class OccurrenceBase(models.Model):
 
     def __eq__(self, other):
         return self.event == other.event and self.original_start == other.original_start and self.original_end == other.original_end
+
+
+class EventModelBase(ModelBase):
+    def __init__(cls, name, bases, attrs):
+        # Dynamically build two related classes to handle occurrences
+        if name != 'EventBase': # This should only fire if this is a subclass (maybe we should make devs apply this metaclass to their subclass instead?)
+            
+            # Build names for the new classes
+            occ_name = "%s%s" % (name, "Occurrence")
+            gen_name = "%s%s" % (occ_name, "Generator")
+        
+            # Create the generator class
+            globals()[gen_name] = type(gen_name,
+                (OccurrenceGeneratorBase,),
+                dict(__module__ = cls.__module__,),
+            )
+            generator_class = globals()[gen_name]
+            
+            # add a foreign key back to the event class
+            generator_class.add_to_class('event', models.ForeignKey(cls, related_name = 'generators'))
+
+            # Create the occurrence class
+            globals()[occ_name] = type(occ_name,
+                (OccurrenceBase,),
+                dict(__module__ = cls.__module__,),
+            )
+            occurrence_class = globals()[occ_name]
+
+            # add a foreign key back to the generator class
+            occurrence_class.add_to_class('generator', models.ForeignKey(generator_class, related_name = 'occurrences'))
+
+        super(EventModelBase, cls).__init__(cls, name, bases, attrs)
+        
+class EventVariationBase(models.Model):
+    def __init__(self, *args, **kwargs):
+        if not hasattr(self, 'unvaried_event'):
+            raise NotImplementedError ('%s must declare a field called "unvaried_event" which is a ForeignKey to the corresponding event' % __class__)
+        super(EventVariationBase, self).__init__(*args, **kwargs)
+
+class EventBase(models.Model):
+    """
+    Event information minus the scheduling details
+    
+    Event scheduling is handled by one or more OccurrenceGenerators
+    """
+    __metaclass__ = EventModelBase
+
+    title = models.CharField(_("Title"), max_length = 255)
+    short_title = models.CharField(_("Short title"), max_length = 255, blank=True)
+    schedule_description = models.CharField(_("Plain English description of schedule"), max_length=255, blank=True)
+
+    class Meta:
+        abstract = True # might be better if it wasn't abstract? (ForeignKeys from OccGen etc.)
+
+    def primary_generator(self):
+        return self.generators.order_by('start')[0]
+        
+    def get_one_occurrence(self):
+        self.generators.all()[0].get_one_occurrence()
+    
+    def get_first_occurrence(self): # should return an actual occurrence
+        return self.primary_generator().start		
+        
+    def get_last_day(self):
+        lastdays = []
+        for generator in self.generators.all():
+            if not generator.end_recurring_period:
+                return False
+            lastdays.append(generator.end_recurring_period)
+        lastdays.sort()
+        return lastdays[-1]
+
+    def has_multiple_occurrences(self):
+        if self.generators.count() > 1 or (self.generators.count() > 0 and self.generators.all()[0].rule != None):
+            return '<a href="%s/occurrences/">edit / add occurrences</a>' % self.id
+        else:
+            return ""
+    has_multiple_occurrences.allow_tags = True
+    
+    def get_absolute_url(self):
+        return "/event/%s/" % self.id
+    
+    def next_occurrences(self):
+        from events.periods import Period
+        first = False
+        last = False
+        for gen in self.generators.all():
+            if not first or gen.start < first:
+                first = gen.start
+            if gen.rule and not gen.end_day:
+                last = False # at least one rule is infinite
+                break
+            if not gen.end_day:
+                genend = gen.start
+            else:
+                genend = gen.end_recurring_period
+            if not last or genend > last:
+                last = genend
+        if last:
+            period = Period(self.generators.all(), first, last)
+        else:
+            period = Period(self.generators.all(), datetime.datetime.now(), datetime.datetime.now() + datetime.timedelta(days=28))		
+        return period.get_occurrences()
+
+freqs = (
+    ("YEARLY", _("Yearly")),
+    ("MONTHLY", _("Monthly")),
+    ("WEEKLY", _("Weekly")),
+    ("DAILY", _("Daily")),
+    ("HOURLY", _("Hourly")),
+)
+
+class Rule(models.Model):
+    """
+    This defines a rule by which an event will recur.  This is defined by the
+    rrule in the dateutil documentation.
+
+    * name - the human friendly name of this kind of recursion.
+    * description - a short description describing this type of recursion.
+    * frequency - the base recurrence period
+    * param - extra params required to define this type of recursion. The params
+      should follow this format:
+
+        param = [rruleparam:value;]*
+        rruleparam = see list below
+        value = int[,int]*
+
+      The options are: (documentation for these can be found at
+      http://labix.org/python-dateutil#head-470fa22b2db72000d7abe698a5783a46b0731b57)
+        ** count
+        ** bysetpos
+        ** bymonth
+        ** bymonthday
+        ** byyearday
+        ** byweekno
+        ** byweekday
+        ** byhour
+        ** byminute
+        ** bysecond
+        ** byeaster
+    """
+    name = models.CharField(_("name"), max_length=100)
+    description = models.TextField(_("description"), blank=True)
+    common = models.BooleanField()
+    frequency = models.CharField(_("frequency"), choices=freqs, max_length=10, blank=True)
+    params = models.TextField(_("inclusion parameters"), blank=True)
+    complex_rule = models.TextField(_("complex rules (over-rides all other settings)"), blank=True)
+
+    class Meta:
+        verbose_name = _('rule')
+        verbose_name_plural = _('rules')
+        ordering = ('-common', 'name')
+
+    def get_params(self):
+        """
+        >>> rule = Rule(params = "count:1;bysecond:1;byminute:1,2,4,5")
+        >>> rule.get_params()
+        {'count': 1, 'byminute': [1, 2, 4, 5], 'bysecond': 1}
+        """
+    	params = self.params
+        if params is None:
+            return {}
+        params = params.split(';')
+        param_dict = []
+        for param in params:
+            param = param.split(':')
+            if len(param) == 2:
+                param = (str(param[0]), [int(p) for p in param[1].split(',')])
+                if len(param[1]) == 1:
+                    param = (param[0], param[1][0])
+                param_dict.append(param)
+        return dict(param_dict)
+        
+    def __unicode__(self):
+        """Human readable string for Rule"""
+        return self.name
+

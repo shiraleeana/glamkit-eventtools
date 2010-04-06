@@ -1,6 +1,5 @@
 from django.contrib import admin
-# 
-from events.models import Rule
+#from eventtools.models import Rule
 # 
 # class CalendarAdminOptions(admin.ModelAdmin):
 #     prepopulated_fields = {"slug": ("name",)}
@@ -9,4 +8,4 @@ from events.models import Rule
 # 
 # admin.site.register(Calendar, CalendarAdminOptions)
 # admin.site.register([Rule, Event, CalendarRelation])
-admin.site.register(Rule)
+#admin.site.register(Rule)
