@@ -1,27 +1,44 @@
 from django.db import models
 from django.utils.translation import ugettext, ugettext_lazy as _
-from django.template.defaultfilters import date
-import datetime
+from django.template.defaultfilters import date as date_filter
+from datetime import date, datetime, time
+from django.core.exceptions import ObjectDoesNotExist
 
 from django.db.models.base import ModelBase
 
+class OccurrenceGeneratorModelBase(ModelBase):
+    def __init__(cls, name, bases, attrs):
+        # Dynamically build two related classes to handle occurrences
+        if name != 'OccurrenceGeneratorBase': # This should only fire if this is a subclass
+            model_name = name[0:-len("Generator")].lower()
+            cls.add_to_class('_occurrence_model_name', model_name)
+            
+        super(OccurrenceGeneratorModelBase, cls).__init__(cls, name, bases, attrs)
+    
 class OccurrenceGeneratorBase(models.Model):
     """
     Defines a set of repetition rules for an event
     """
+    
+    __metaclass__ = OccurrenceGeneratorModelBase
+    
     first_start_date = models.DateField()
     first_start_time = models.TimeField()
     first_end_date = models.DateField(null = True, blank = True)
     first_end_time = models.TimeField(null = True, blank = True)
     rule = models.ForeignKey('Rule', verbose_name="Repetition rule", null = True, blank = True, help_text="Select '----' for a one-off event.")
     repeat_until = models.DateTimeField(null = True, blank = True, help_text="This date is ignored for one-off events.")
-
+    
     class Meta:
         ordering = ('first_start_date', 'first_start_time')
         abstract = True
         verbose_name = 'occurrence generator'
         verbose_name_plural = 'occurrence generators'
 
+    def _occurrence_model(self):
+        return models.get_model(self._meta.app_label, self._occurrence_model_name)
+    occurrence_model = property(_occurrence_model)
+        
     def _end_recurring_period(self):
         if self.end_day:
             return datetime.datetime.combine(self.end_day, datetime.time.max)
@@ -31,7 +48,7 @@ class OccurrenceGeneratorBase(models.Model):
 
     # for backwards compatibility    
     def _get_start(self):
-        return datetime(self.first_start_date, self.first_start_time)
+        return datetime.combine(self.first_start_date, self.first_start_time)
 
     def _set_start(self, value):
         self.first_start_date = value.date
@@ -48,18 +65,15 @@ class OccurrenceGeneratorBase(models.Model):
     end_time = property(_get_end_time, _set_end_time)    
         
     def _end(self):
-        if self.endtime:
-            return datetime.datetime.combine(self.start.date(), self.endtime)
-        else:
-            return self.start
+        return datetime.combine(self.first_end_date or self.first_start_date, self.first_end_time)
     end = property(_end)
 
     def __unicode__(self):
         date_format = u'l, %s' % ugettext("DATE_FORMAT")
         return ugettext('%(title)s: %(start)s-%(end)s') % {
             'title': self.event.title,
-            'start': date(self.start, date_format),
-            'end': date(self.end, date_format),
+            'start': date_filter(self.start, date_format),
+            'end': date_filter(self.end, date_format),
         }
 
     def get_occurrences(self, start, end):
@@ -99,9 +113,6 @@ class OccurrenceGeneratorBase(models.Model):
         final_occurrences += occ_replacer.get_additional_occurrences(start, end)
         return final_occurrences
         
-    def occurrence_model(self):
-        model_name = self.__class__.__name__[0:-len("Generator")].lower()
-        return = models.get_model(self._meta.app_label, model_name)
 
     def get_rrule_object(self):
         if self.rule is not None:
@@ -129,10 +140,9 @@ class OccurrenceGeneratorBase(models.Model):
     
     def get_one_occurrence(self):
         try:
-            occ = self.occurrence_model().objects.filter(generator__event=self)[0]
+            occ = self.occurrence_model.objects.filter(generator__event=self)[0]
         except IndexError:
-            now = datetime.datetime.now()
-            occ = self.occurrence_model()(generator=self, varied_start_date=now.date, varied_start_time=now.time, varied_end_date=now.date, varied_end_time=now.time, unvaried_start_date=now.date, unvaried_start_time=now.time, unvaried_end_date=now.date, unvaried_end_time=now.time)
+            occ = self.occurrence_model(generator=self, varied_start_date=self.first_start_date, varied_start_time=self.first_start_time, varied_end_date=self.first_end_date, varied_end_time=self.first_start_time, unvaried_start_date=self.first_start_date, unvaried_start_time=self.first_start_time, unvaried_end_date=self.first_end_date, unvaried_end_time=self.first_start_time)
         return occ
 
     def get_occurrence(self, date):
@@ -206,6 +216,37 @@ class OccurrenceGeneratorBase(models.Model):
             yield occ_replacer.get_occurrence(next)
 
 
+class MergedObject():
+    """
+    Objects of this class behave as though they are a merge of two other objects (which we'll call General and Special). The attributes of Special override the corresponding attributes of General, *unless* the value of the attribute in Special == None.
+    
+    All attributes are read-only, to save you from a world of pain.
+    
+    """
+
+    def __init__(self, general, special):
+        self._general = general
+        self._special = special
+        
+    def __getattr__(self, value):
+        
+        try:
+            result = getattr(self._special, value)
+            if result == None:
+                raise AttributeError
+        except AttributeError:
+            result = getattr(self._general, value)
+
+        return result
+        
+    def __setattr__(self, attr, value):
+        if attr in ['_general', '_special']:
+            self.__dict__[attr] = value
+        else:
+            raise AttributeError("Set the attribute on one of the objects that are being merged.")
+    
+        
+
 class OccurrenceBase(models.Model):
 
     # explicit fields
@@ -215,15 +256,58 @@ class OccurrenceBase(models.Model):
     varied_end_time = models.TimeField(blank=True, null=True, db_index=True)
     unvaried_start_date = models.DateField(db_index=True)
     unvaried_start_time = models.TimeField(db_index=True)
-    unvaried_end_date = models.DateField(db_index=True)
-    unvaried_end_time = models.TimeField(db_index=True)
+    unvaried_end_date = models.DateField(db_index=True, null=True)
+    unvaried_end_time = models.TimeField(db_index=True, null=True)
     cancelled = models.BooleanField(_("cancelled"), default=False)
-
+    
     class Meta:
         verbose_name = _("occurrence")
         verbose_name_plural = _("occurrences")
         abstract = True
         unique_together = ('unvaried_start_date', 'unvaried_start_time', 'unvaried_end_date', 'unvaried_end_time')
+
+
+    def _merged_event(self): #bit slow, but friendly
+        return MergedObject(self.unvaried_event, self.varied_event)
+    merged_event = property(_merged_event)
+        
+    # for backwards compatibility    
+    def _get_varied_start(self):
+        return datetime.combine(self.varied_start_date, self.varied_start_time)
+
+    def _set_varied_start(self, value):
+        self.varied_start_date = value.date
+        self.varied_start_time = value.time
+        
+    varied_start = property(_get_varied_start, _set_varied_start)
+    
+    def _get_varied_end(self):
+        return datetime.combine(self.varied_end_date, self.varied_end_time)
+
+    def _set_varied_end(self, value):
+        self.varied_end_date = value.date
+        self.varied_end_time = value.time
+    
+    varied_end = property(_get_varied_end, _set_varied_end)    
+        
+    def _get_unvaried_start(self):
+        return datetime.combine(self.unvaried_start_date, self.unvaried_start_time)
+
+    def _set_unvaried_start(self, value):
+        self.unvaried_start_date = value.date
+        self.unvaried_start_time = value.time
+        
+    unvaried_start = property(_get_unvaried_start, _set_unvaried_start)
+    
+    def _get_unvaried_end(self):
+        return datetime.combine(self.unvaried_end_date, self.unvaried_end_time)
+
+    def _set_unvaried_end(self, value):
+        self.unvaried_end_date = value.date
+        self.unvaried_end_time = value.time
+    
+    unvaried_end = property(_get_unvaried_end, _set_unvaried_end)    
+        
 
 # 
 #     def moved(self):
@@ -247,24 +331,40 @@ class OccurrenceBase(models.Model):
     def __unicode__(self):
         return ugettext("%(event)s: %(day)s") % {
             'event': self.generator.event.title,
-            'day': self.start.strftime('%a, %d %b %Y'),
+            'day': self.varied_start.strftime('%a, %d %b %Y'),
         }
 
-    def __cmp__(self, other):
-        rank = cmp(self.start, other.start)
-        if rank == 0:
-            return cmp(self.end, other.end)
-        return rank
+#     def __cmp__(self, other):
+#         rank = cmp(self.start, other.start)
+#         if rank == 0:
+#             return cmp(self.end, other.end)
+#         return rank
+# 
+#     def __eq__(self, other):
+#         return self.event == other.event and self.original_start == other.original_start and self.original_end == other.original_end
+        
+    def _get_varied_event(self):
+        try:
+            return getattr(self, "_varied_event", None)
+        except:
+            return None
+    def _set_varied_event(self, v):
+        if "_varied_event" in dir(self): #for a very weird reason, hasattr(self, "_varied_event") fails. Perhaps this is because it is injected by __init__ in the metaclass, not __new__.
+            self._varied_event = v
+        else:
+            raise AttributeError("You can't set an event variation for an event class with no 'varied_by' attribute.")
+    varied_event = property(_get_varied_event, _set_varied_event)
 
-    def __eq__(self, other):
-        return self.event == other.event and self.original_start == other.original_start and self.original_end == other.original_end
+    def _get_unvaried_event(self):
+        return self.generator.event
+    unvaried_event = property(_get_unvaried_event)
+
 
 
 class EventModelBase(ModelBase):
     def __init__(cls, name, bases, attrs):
         # Dynamically build two related classes to handle occurrences
         if name != 'EventBase': # This should only fire if this is a subclass (maybe we should make devs apply this metaclass to their subclass instead?)
-            
             # Build names for the new classes
             occ_name = "%s%s" % (name, "Occurrence")
             gen_name = "%s%s" % (occ_name, "Generator")
@@ -288,14 +388,16 @@ class EventModelBase(ModelBase):
 
             # add a foreign key back to the generator class
             occurrence_class.add_to_class('generator', models.ForeignKey(generator_class, related_name = 'occurrences'))
+            if hasattr(cls, 'varied_by'):
+                occurrence_class.add_to_class('_varied_event', models.ForeignKey(cls.varied_by, related_name = 'occurrences', null=True))
 
         super(EventModelBase, cls).__init__(cls, name, bases, attrs)
         
-class EventVariationBase(models.Model):
-    def __init__(self, *args, **kwargs):
-        if not hasattr(self, 'unvaried_event'):
-            raise NotImplementedError ('%s must declare a field called "unvaried_event" which is a ForeignKey to the corresponding event' % __class__)
-        super(EventVariationBase, self).__init__(*args, **kwargs)
+# class EventVariationBase(models.Model):
+#     def __init__(self, *args, **kwargs):
+#         if not hasattr(self, 'unvaried_event'):
+#             raise NotImplementedError ('%s must declare a field called "unvaried_event" which is a ForeignKey to the corresponding event' % __class__)
+#         super(EventVariationBase, self).__init__(*args, **kwargs)
 
 class EventBase(models.Model):
     """
@@ -316,7 +418,10 @@ class EventBase(models.Model):
         return self.generators.order_by('start')[0]
         
     def get_one_occurrence(self):
-        self.generators.all()[0].get_one_occurrence()
+        try:
+            return self.generators.all()[0].get_one_occurrence()
+        except IndexError:
+            raise IndexError("This Event type has no generators defined")
     
     def get_first_occurrence(self): # should return an actual occurrence
         return self.primary_generator().start		

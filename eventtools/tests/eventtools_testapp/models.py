@@ -1,15 +1,18 @@
-from eventtools.models import EventBase, EventVariationBase
+from eventtools.models import EventBase
 from django.db import models
 
 class LectureEvent(EventBase):
     lecturer = models.TextField(max_length=100)
     location = models.TextField(max_length=100)
+    wheelchair_access = models.BooleanField(default=True)
+    varied_by = "LectureEventVariation"
 
-class LectureEventVariation(EventVariationBase):
-    unvaried_event = models.ForeignKey(LectureEvent)
+class LectureEventVariation(models.Model):
+#     unvaried_event = models.ForeignKey(LectureEvent)
     #Usually nothing should be compulsory in a variation (but you never know)
-    title = models.CharField(max_length=100, blank=True)
-    location = models.TextField(max_length=100, blank=True)
+    title = models.CharField(max_length=100, blank=True, null=True)
+    location = models.TextField(max_length=100, blank=True, null=True)
+    wheelchair_access = models.NullBooleanField() #implied default = None
 
 # Not allowed
 # 
@@ -26,9 +29,10 @@ class LectureEventVariation(EventVariationBase):
 
 class BroadcastEvent(EventBase):
     presenter = models.TextField(max_length=100)
+    varied_by = "BroadcastEventVariation"
             
-class BroadcastEventVariation(EventVariationBase):
-    unvaried_event = models.ForeignKey(BroadcastEvent)
+class BroadcastEventVariation(models.Model):
+#     unvaried_event = models.ForeignKey(BroadcastEvent)
     
     presenter = models.TextField(max_length=100, blank=True)
     reason_for_variation = models.TextField()
