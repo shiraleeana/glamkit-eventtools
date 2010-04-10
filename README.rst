@@ -1,7 +1,10 @@
+==============
 Glamkit-events
-================
+==============
 
-An event management application designed for the GLAM (Galleries, Libraries, Museums and Archives) sector. It is a fork of the popular glamkit-events app, featuring:
+An event management application designed for the GLAM (Galleries, Libraries, Museums and Archives) sector. It is a fork of the popular glamkit-schedule app.
+
+Features:
 
  * one-time and recurring events
  * calendar exceptions (occurrences changed or cancelled)
