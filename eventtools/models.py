@@ -13,7 +13,7 @@ class OccurrenceGeneratorModelBase(ModelBase):
         if name != 'OccurrenceGeneratorBase': # This should only fire if this is a subclass
             model_name = name[0:-len("Generator")].lower()
             cls.add_to_class('_occurrence_model_name', model_name)
-        super(OccurrenceGeneratorModelBase, cls).__init__(cls, name, bases, attrs)
+        super(OccurrenceGeneratorModelBase, cls).__init__(name, bases, attrs)
     
 class OccurrenceGeneratorBase(models.Model):
     """
@@ -410,14 +410,8 @@ class EventModelBase(ModelBase):
             if hasattr(cls, 'varied_by'):
                 occurrence_class.add_to_class('_varied_event', models.ForeignKey(cls.varied_by, related_name = 'occurrences', null=True))
 
-        super(EventModelBase, cls).__init__(cls, name, bases, attrs)
+        super(EventModelBase, cls).__init__(name, bases, attrs)
         
-# class EventVariationBase(models.Model):
-#     def __init__(self, *args, **kwargs):
-#         if not hasattr(self, 'unvaried_event'):
-#             raise NotImplementedError ('%s must declare a field called "unvaried_event" which is a ForeignKey to the corresponding event' % __class__)
-#         super(EventVariationBase, self).__init__(*args, **kwargs)
-
 class EventBase(models.Model):
     """
     Event information minus the scheduling details
@@ -425,16 +419,6 @@ class EventBase(models.Model):
     Event scheduling is handled by one or more OccurrenceGenerators
     """
     __metaclass__ = EventModelBase
-
-    title = models.CharField(_("Title"), max_length = 255)
-    short_title = models.CharField(_("Short title"), max_length = 255, blank=True)
-    schedule_description = models.CharField(_("Plain English description of schedule"), max_length=255, blank=True)
-
-    def __init__(cls, name, bases, attrs):
-        if name != 'EventBase': # This should only fire if this is a subclass
-            model_name = "%socurrencegenerator" % name.lower()
-            cls.add_to_class('_generator_model_name', model_name)
-        super(EventBase, cls).__init__(cls, name, bases, attrs)
 
     class Meta:
         abstract = True
