@@ -69,7 +69,7 @@ class OccurrenceReplacer(object):
             occ)
 
     def has_occurrence(self, occ):
-        return (occ.event, occ.original_start, occ.original_end) in self.lookup
+        return (occ.generator.event, occ.original_start, occ.original_end) in self.lookup
 
     def get_additional_occurrences(self, start, end):
         """

@@ -3,6 +3,8 @@ from django.utils.translation import ugettext, ugettext_lazy as _
 from django.template.defaultfilters import date as date_filter
 from datetime import date, datetime, time
 from django.core.exceptions import ObjectDoesNotExist
+from eventtools.utils import OccurrenceReplacer
+from dateutil import rrule
 
 from django.db.models.base import ModelBase
 
@@ -40,10 +42,11 @@ class OccurrenceGeneratorBase(models.Model):
     occurrence_model = property(_occurrence_model)
         
     def _end_recurring_period(self):
-        if self.end_day:
-            return datetime.datetime.combine(self.end_day, datetime.time.max)
-        else:
-            return None	
+        return self.end
+#         if self.end:
+#             return datetime.datetime.combine(self.end_day, datetime.time.max)
+#         else:
+#             return None	
     end_recurring_period = property(_end_recurring_period)
 
     # for backwards compatibility    
@@ -51,8 +54,8 @@ class OccurrenceGeneratorBase(models.Model):
         return datetime.combine(self.first_start_date, self.first_start_time)
 
     def _set_start(self, value):
-        self.first_start_date = value.date
-        self.first_start_time = value.time
+        self.first_start_date = value.date()
+        self.first_start_time = value.time()
         
     start = property(_get_start, _set_start)
     
@@ -95,7 +98,7 @@ class OccurrenceGeneratorBase(models.Model):
 #         []
 # 
 #         """
-        persisted_occurrences = self.occurrence_set.all()
+        persisted_occurrences = self.occurrences.all()
         occ_replacer = OccurrenceReplacer(persisted_occurrences)
         occurrences = self._get_occurrence_list(start, end)
         final_occurrences = []
@@ -135,14 +138,34 @@ class OccurrenceGeneratorBase(models.Model):
     def _create_occurrence(self, start, end=None):
         if end is None:
             end = start + (self.end - self.start)
-        occ = Occurrence(generator__event=self,start=start,end=end, original_start=start, original_end=end)
+        occ = self.occurrence_model(
+            generator=self,
+            varied_start_date=start.date(),
+            varied_start_time=start.time(),
+            varied_end_date=end.date(),
+            varied_end_time=end.time(),
+            unvaried_start_date=start.date(),
+            unvaried_start_time=start.time(),
+            unvaried_end_date=end.date(),
+            unvaried_end_time=end.time(),
+        )
         return occ
     
     def get_one_occurrence(self):
         try:
             occ = self.occurrence_model.objects.filter(generator__event=self)[0]
         except IndexError:
-            occ = self.occurrence_model(generator=self, varied_start_date=self.first_start_date, varied_start_time=self.first_start_time, varied_end_date=self.first_end_date, varied_end_time=self.first_start_time, unvaried_start_date=self.first_start_date, unvaried_start_time=self.first_start_time, unvaried_end_date=self.first_end_date, unvaried_end_time=self.first_start_time)
+            occ = self.occurrence_model(
+                generator=self,
+                varied_start_date=self.first_start_date,
+                varied_start_time=self.first_start_time,
+                varied_end_date=self.first_end_date,
+                varied_end_time=self.first_start_time,
+                unvaried_start_date=self.first_start_date,
+                unvaried_start_time=self.first_start_time,
+                unvaried_end_date=self.first_end_date,
+                unvaried_end_time=self.first_start_time
+            )
         return occ
 
     def get_occurrence(self, date):
@@ -277,7 +300,7 @@ class OccurrenceBase(models.Model):
         self.varied_start_date = value.date
         self.varied_start_time = value.time
         
-    varied_start = property(_get_varied_start, _set_varied_start)
+    start = varied_start = property(_get_varied_start, _set_varied_start)
     
     def _get_varied_end(self):
         return datetime.combine(self.varied_end_date, self.varied_end_time)
@@ -286,16 +309,16 @@ class OccurrenceBase(models.Model):
         self.varied_end_date = value.date
         self.varied_end_time = value.time
     
-    varied_end = property(_get_varied_end, _set_varied_end)    
+    end = varied_end = property(_get_varied_end, _set_varied_end)    
         
     def _get_unvaried_start(self):
         return datetime.combine(self.unvaried_start_date, self.unvaried_start_time)
 
     def _set_unvaried_start(self, value):
-        self.unvaried_start_date = value.date
-        self.unvaried_start_time = value.time
+        self.unvaried_start_date = value.date()
+        self.unvaried_start_time = value.time()
         
-    unvaried_start = property(_get_unvaried_start, _set_unvaried_start)
+    original_start = unvaried_start = property(_get_unvaried_start, _set_unvaried_start)
     
     def _get_unvaried_end(self):
         return datetime.combine(self.unvaried_end_date, self.unvaried_end_time)
@@ -304,7 +327,7 @@ class OccurrenceBase(models.Model):
         self.unvaried_end_date = value.date
         self.unvaried_end_time = value.time
     
-    unvaried_end = property(_get_unvaried_end, _set_unvaried_end)    
+    original_end = unvaried_end = property(_get_unvaried_end, _set_unvaried_end)    
         
 
 # 
@@ -413,7 +436,7 @@ class EventBase(models.Model):
         abstract = True # might be better if it wasn't abstract? (ForeignKeys from OccGen etc.)
 
     def primary_generator(self):
-        return self.generators.order_by('start')[0]
+        return self.generators.order_by('first_start_date', 'first_start_time')[0]
         
     def get_one_occurrence(self):
         try:
