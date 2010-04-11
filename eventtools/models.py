@@ -10,11 +10,9 @@ from django.db.models.base import ModelBase
 
 class OccurrenceGeneratorModelBase(ModelBase):
     def __init__(cls, name, bases, attrs):
-        # Dynamically build two related classes to handle occurrences
         if name != 'OccurrenceGeneratorBase': # This should only fire if this is a subclass
             model_name = name[0:-len("Generator")].lower()
             cls.add_to_class('_occurrence_model_name', model_name)
-            
         super(OccurrenceGeneratorModelBase, cls).__init__(cls, name, bases, attrs)
     
 class OccurrenceGeneratorBase(models.Model):
@@ -432,8 +430,18 @@ class EventBase(models.Model):
     short_title = models.CharField(_("Short title"), max_length = 255, blank=True)
     schedule_description = models.CharField(_("Plain English description of schedule"), max_length=255, blank=True)
 
+    def __init__(cls, name, bases, attrs):
+        if name != 'EventBase': # This should only fire if this is a subclass
+            model_name = "%socurrencegenerator" % name.lower()
+            cls.add_to_class('_generator_model_name', model_name)
+        super(EventBase, cls).__init__(cls, name, bases, attrs)
+
     class Meta:
-        abstract = True # might be better if it wasn't abstract? (ForeignKeys from OccGen etc.)
+        abstract = True
+
+    def _generator_model(self):
+        return models.get_model(self._meta.app_label, self._occurrence_model_name)
+    generator_model = property(_generator_model)
 
     def primary_generator(self):
         return self.generators.order_by('first_start_date', 'first_start_time')[0]
