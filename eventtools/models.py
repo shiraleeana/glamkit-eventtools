@@ -126,10 +126,10 @@ class OccurrenceGeneratorBase(models.Model):
             simple_rule = rrule.rrule(eval(frequency), dtstart=self.start, **params)
             set = rrule.rruleset()
             set.rrule(simple_rule)
-            goodfriday = rrule.rrule(rrule.YEARLY, dtstart=self.start, byeaster=-2)
-            christmas = rrule.rrule(rrule.YEARLY, dtstart=self.start, bymonth=12, bymonthday=25)
-            set.exrule(goodfriday)
-            set.exrule(christmas)
+#             goodfriday = rrule.rrule(rrule.YEARLY, dtstart=self.start, byeaster=-2)
+#             christmas = rrule.rrule(rrule.YEARLY, dtstart=self.start, bymonth=12, bymonthday=25)
+#             set.exrule(goodfriday)
+#             set.exrule(christmas)
             return set
 
     def _create_occurrence(self, start, end=None):
@@ -248,8 +248,6 @@ class MergedObject():
         
 
 class OccurrenceBase(models.Model):
-
-    # explicit fields
     varied_start_date = models.DateField(blank=True, null=True, db_index=True)
     varied_start_time = models.TimeField(blank=True, null=True, db_index=True)
     varied_end_date = models.DateField(blank=True, null=True, db_index=True)
