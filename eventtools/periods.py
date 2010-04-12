@@ -27,14 +27,14 @@ class Period(object):
     This class represents a period of time. It can return a set of occurrences
     based on its events, and its time period (start and end).
     '''
-    def __init__(self, events, start, end, parent_persisted_occurrences = None,
+    def __init__(self, events, start, end, parent_exceptional_occurrences = None,
         occurrence_pool=None):
         self.start = start
         self.end = end
         self.events = events
         self.occurrence_pool = occurrence_pool
-        if parent_persisted_occurrences is not None:
-            self._persisted_occurrences = parent_persisted_occurrences
+        if parent_exceptional_occurrences is not None:
+            self._exceptional_occurrences = parent_exceptional_occurrences
 
     def __eq__(self, period):
         return self.start==period.start and self.end==period.end and self.events==period.events
@@ -62,12 +62,12 @@ class Period(object):
         return occs
     occurrences = property(cached_get_sorted_occurrences)
 
-    def get_persisted_occurrences(self):
-        if hasattr(self, '_persisted_occurrences'):
-            return self._persisted_occurrences
+    def get_exeptional_occurrences(self):
+        if hasattr(self, '_exceptional_occurrences'):
+            return self._exceptional_occurrences
         else:
-            self._persisted_occurrences = Occurrence.objects.filter(event__in = self.events)
-            return self._persisted_occurrences
+            self._exceptional_occurrences = Occurrence.objects.filter(event__in = self.events)
+            return self._exceptional_occurrences
 
     def classify_occurrence(self, occurrence):
         if occurrence.cancelled and not SHOW_CANCELLED_OCCURRENCES:
@@ -115,7 +115,7 @@ class Period(object):
 
     def create_sub_period(self, cls, start=None):
         start = start or self.start
-        return cls(self.events, start, self.get_persisted_occurrences(), self.occurrences)
+        return cls(self.events, start, self.get_exceptional_occurrences(), self.occurrences)
 
     def get_periods(self, cls):
         period = self.create_sub_period(cls)
@@ -125,11 +125,11 @@ class Period(object):
 
 
 class Year(Period):
-    def __init__(self, events, date=None, parent_persisted_occurrences=None):
+    def __init__(self, events, date=None, parent_exceptional_occurrences=None):
         if date is None:
             date = datetime.datetime.now()
         start, end = self._get_year_range(date)
-        super(Year, self).__init__(events, start, end, parent_persisted_occurrences)
+        super(Year, self).__init__(events, start, end, parent_exceptional_occurrences)
 
     def get_months(self):
         return self.get_periods(Month)
@@ -160,13 +160,13 @@ class Month(Period):
     The month period has functions for retrieving the week periods within this period
     and day periods within the date.
     """
-    def __init__(self, events, date=None, parent_persisted_occurrences=None,
+    def __init__(self, events, date=None, parent_exceptional_occurrences=None,
         occurrence_pool=None):
         if date is None:
             date = datetime.datetime.now()
         start, end = self._get_month_range(date)
         super(Month, self).__init__(events, start, end,
-            parent_persisted_occurrences, occurrence_pool)
+            parent_exceptional_occurrences, occurrence_pool)
 
     def get_weeks(self):
         return self.get_periods(Week)
@@ -225,13 +225,13 @@ class Week(Period):
     """
     The Week period that has functions for retrieving Day periods within it
     """
-    def __init__(self, events, date=None, parent_persisted_occurrences=None,
+    def __init__(self, events, date=None, parent_exceptional_occurrences=None,
         occurrence_pool=None):
         if date is None:
             date = datetime.datetime.now()
         start, end = self._get_week_range(date)
         super(Week, self).__init__(events, start, end,
-            parent_persisted_occurrences, occurrence_pool)
+            parent_exceptional_occurrences, occurrence_pool)
 
     def prev_week(self):
         return Week(self.events, self.start - datetime.timedelta(days=7))
@@ -279,13 +279,13 @@ class Week(Period):
 
 
 class Day(Period):
-    def __init__(self, events, date=None, parent_persisted_occurrences=None,
+    def __init__(self, events, date=None, parent_exceptional_occurrences=None,
         occurrence_pool=None):
         if date is None:
             date = datetime.datetime.now()
         start, end = self._get_day_range(date)
         super(Day, self).__init__(events, start, end,
-            parent_persisted_occurrences, occurrence_pool)
+            parent_exceptional_occurrences, occurrence_pool)
 
     def _get_day_range(self, date):
         if isinstance(date, datetime.datetime):

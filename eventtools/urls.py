@@ -66,7 +66,7 @@ url(r'^event/delete/(?P<event_id>\d+)/$',
     'events.views.delete_event',
     name="delete_event"),
 
-#urls for already persisted occurrences
+#urls for exceptional occurrences
 url(r'^occurrence/(?P<event_id>\d+)/(?P<occurrence_id>\d+)/$',
     'events.views.occurrence',
     name="occurrence"), 
@@ -77,7 +77,7 @@ url(r'^occurrence/edit/(?P<event_id>\d+)/(?P<occurrence_id>\d+)/$',
     'events.views.edit_occurrence',
     name="edit_occurrence"),
 
-#urls for unpersisted occurrences
+#urls for unexceptional occurrences
 url(r'^occurrence/(?P<event_id>\d+)/(?P<year>\d+)/(?P<month>\d+)/(?P<day>\d+)/(?P<hour>\d+)/(?P<minute>\d+)/(?P<second>\d+)/$',
     'events.views.occurrence', 
     name="occurrence_by_date"),

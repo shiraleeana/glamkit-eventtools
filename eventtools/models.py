@@ -101,12 +101,12 @@ class OccurrenceGeneratorBase(models.Model):
 #         []
 # 
 #         """
-        persisted_occurrences = self.occurrences.all()
-        occ_replacer = OccurrenceReplacer(persisted_occurrences)
+        exceptional_occurrences = self.occurrences.all()
+        occ_replacer = OccurrenceReplacer(exceptional_occurrences)
         occurrences = self._get_occurrence_list(start, end)
         final_occurrences = []
         for occ in occurrences:
-            # replace occurrences with their persisted counterparts
+            # replace occurrences with their exceptional counterparts
             if occ_replacer.has_occurrence(occ):
                 p_occ = occ_replacer.get_occurrence(occ)
                 # ...but only if they are within this period
@@ -114,7 +114,7 @@ class OccurrenceGeneratorBase(models.Model):
                     final_occurrences.append(p_occ)
             else:
               final_occurrences.append(occ)
-        # then add persisted occurrences which originated outside of this period but now
+        # then add exceptional occurrences which originated outside of this period but now
         # fall within it
         final_occurrences += occ_replacer.get_additional_occurrences(start, end)
         return final_occurrences
@@ -208,7 +208,7 @@ class OccurrenceGeneratorBase(models.Model):
 
     def _occurrences_after_generator(self, after=None):
         """
-        returns a generator that produces unpersisted occurrences after the
+        returns a generator that produces unexceptional occurrences after the
         datetime ``after``.
         """
 
@@ -233,7 +233,7 @@ class OccurrenceGeneratorBase(models.Model):
     def occurrences_after(self, after=None):
         """
         returns a generator that produces occurrences after the datetime
-        ``after``.	Includes all of the persisted Occurrences.
+        ``after``.	Includes all of the exceptional Occurrences.
         """
         occ_replacer = OccurrenceReplacer(self.occurrence_set.all())
         generator = self._occurrences_after_generator(after)

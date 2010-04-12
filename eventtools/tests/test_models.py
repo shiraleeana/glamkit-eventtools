@@ -147,7 +147,7 @@ class TestModelMetaClass(TestCase):
     def test_saving(self):
         """
         A small check that saving occurrences without variations does not create a blank variation.
-        TODO: expand this so to check changing the time of a (persistent) occurrence works the same way.
+        TODO: expand this so to check changing the time of an exceptional occurrence works the same way.
         """
         te1 = LectureEvent.objects.create(location='The lecture hall', title='Lecture series on Butterflies')
         te1.generators.create(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))

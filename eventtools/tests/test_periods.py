@@ -230,6 +230,6 @@
 #         start = datetime.datetime(2008, 1, 5, 9, 0)
 #         end = datetime.datetime(2008, 1, 5, 10, 0)
 #         parent_period = Period(Event.objects.all(), start, end)
-#         period = Period(parent_period.events, start, end, parent_period.get_persisted_occurrences(), parent_period.occurrences)
+#         period = Period(parent_period.events, start, end, parent_period.get_exceptional_occurrences(), parent_period.occurrences)
 #         self.assertEquals(parent_period.occurrences, period.occurrences)
 # 
