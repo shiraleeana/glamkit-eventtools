@@ -5,10 +5,15 @@ from datetime import date, datetime, time
 from django.core.exceptions import ObjectDoesNotExist
 from eventtools.utils import OccurrenceReplacer
 from dateutil import rrule
+import sys
 
 from django.db.models.base import ModelBase
 
 class OccurrenceGeneratorModelBase(ModelBase):
+    """
+    When we create an OccurrenceGenerator, add to it an occurrenc_model_name so it knows what to generate.
+    """
+    
     def __init__(cls, name, bases, attrs):
         if name != 'OccurrenceGeneratorBase': # This should only fire if this is a subclass
             model_name = name[0:-len("Generator")].lower()
@@ -25,8 +30,8 @@ class OccurrenceGeneratorBase(models.Model):
     first_start_date = models.DateField()
     first_start_time = models.TimeField()
     first_end_date = models.DateField(null = True, blank = True)
-    first_end_time = models.TimeField(null = True, blank = True)
-    rule = models.ForeignKey('Rule', verbose_name="Repetition rule", null = True, blank = True, help_text="Select '----' for a one-off event.")
+    first_end_time = models.TimeField() #wasn't originally required, but it turns out you do have to say when an event ends...
+    rule = models.ForeignKey('Rule', verbose_name="How often does it repeat?", null = True, blank = True, help_text="Select '----' for a one-off event.")
     repeat_until = models.DateTimeField(null = True, blank = True, help_text="This date is ignored for one-off events.")
     
     class Meta:
@@ -72,7 +77,7 @@ class OccurrenceGeneratorBase(models.Model):
     def __unicode__(self):
         date_format = u'l, %s' % ugettext("DATE_FORMAT")
         return ugettext('%(title)s: %(start)s-%(end)s') % {
-            'title': self.event.title,
+            'title': unicode(self.event),
             'start': date_filter(self.start, date_format),
             'end': date_filter(self.end, date_format),
         }
@@ -382,30 +387,43 @@ class OccurrenceBase(models.Model):
 
 class EventModelBase(ModelBase):
     def __init__(cls, name, bases, attrs):
-        # Dynamically build two related classes to handle occurrences
+        """
+        Dynamically build two related classes to handle occurrences.
+        
+        The two generated classes are ModelNameOccurrence and ModelNameOccurrenceGenerator.
+        
+        If the EventBase subclass is called e.g. LectureEvent, then the two generated class will be called LectureEventOccurrence and LectureEventOccurrenceGenerator (yeesh, but end-user never sees these.)
+        
+        """
         if name != 'EventBase': # This should only fire if this is a subclass (maybe we should make devs apply this metaclass to their subclass instead?)
             # Build names for the new classes
             occ_name = "%s%s" % (name, "Occurrence")
             gen_name = "%s%s" % (occ_name, "Generator")
         
             # Create the generator class
-            globals()[gen_name] = type(gen_name,
+            # globals()[gen_name] # < injecting into globals doesn't work with some of django's import magic. We have to inject the new class directly into the module that contains the EventBase subclass. I am AMAZED that you can do this, and have it still work for future imports.
+            setattr(sys.modules[cls.__module__], gen_name, type(gen_name,
                 (OccurrenceGeneratorBase,),
                 dict(__module__ = cls.__module__,),
             )
-            generator_class = globals()[gen_name]
+            )
+            generator_class = sys.modules[cls.__module__].__dict__[gen_name]
             
             # add a foreign key back to the event class
             generator_class.add_to_class('event', models.ForeignKey(cls, related_name = 'generators'))
 
             # Create the occurrence class
-            globals()[occ_name] = type(occ_name,
+            # globals()[occ_name]
+            setattr(sys.modules[cls.__module__], occ_name, type(occ_name,
                 (OccurrenceBase,),
                 dict(__module__ = cls.__module__,),
             )
-            occurrence_class = globals()[occ_name]
+            )
+            occurrence_class = sys.modules[cls.__module__].__dict__[occ_name]
 
-            # add a foreign key back to the generator class
+            # import pdb; pdb.set_trace()
+            
+
             occurrence_class.add_to_class('generator', models.ForeignKey(generator_class, related_name = 'occurrences'))
             if hasattr(cls, 'varied_by'):
                 occurrence_class.add_to_class('_varied_event', models.ForeignKey(cls.varied_by, related_name = 'occurrences', null=True))
@@ -448,12 +466,23 @@ class EventBase(models.Model):
         lastdays.sort()
         return lastdays[-1]
 
-    def has_multiple_occurrences(self):
-        if self.generators.count() > 1 or (self.generators.count() > 0 and self.generators.all()[0].rule != None):
-            return '<a href="%s/occurrences/">edit / add occurrences</a>' % self.id
-        else:
-            return ""
-    has_multiple_occurrences.allow_tags = True
+    def _has_zero_generators(self):
+        return self.generators.count() == 0
+    has_zero_generators = property(_has_zero_generators)
+        
+    def _has_multiple_occurrences(self):
+        return self.generators.count() > 1 or (self.generators.count() > 0 and self.generators.all()[0].rule != None)
+    has_multiple_occurrences = property(_has_multiple_occurrences)
+
+    def edit_occurrences_link(self):
+        """ An admin link """
+        if self.has_multiple_occurrences:
+            return '<a href="%s/occurrences/">%s</a>' % (self.id, unicode(_("add or edit occurrences")))
+        if self.has_zero_generators:
+            return _('(has no occurrence generators)')
+        return _("(has only one occurrence)")
+    edit_occurrences_link.allow_tags = True
+    edit_occurrences_link.short_description = _("Occurrences")
     
     def get_absolute_url(self):
         return "/event/%s/" % self.id
@@ -490,13 +519,13 @@ freqs = (
 
 class Rule(models.Model):
     """
-    This defines a rule by which an event will recur.  This is defined by the
+    This defines a rule by which an event will repeat.  This is defined by the
     rrule in the dateutil documentation.
 
-    * name - the human friendly name of this kind of recursion.
-    * description - a short description describing this type of recursion.
-    * frequency - the base recurrence period
-    * param - extra params required to define this type of recursion. The params
+    * name - the human friendly name of this kind of repetition.
+    * description - a short description describing this type of repetition.
+    * frequency - the base repetition period
+    * param - extra params required to define this type of repetition. The params
       should follow this format:
 
         param = [rruleparam:value;]*
@@ -517,16 +546,16 @@ class Rule(models.Model):
         ** bysecond
         ** byeaster
     """
-    name = models.CharField(_("name"), max_length=100)
-    description = models.TextField(_("description"), blank=True)
-    common = models.BooleanField()
-    frequency = models.CharField(_("frequency"), choices=freqs, max_length=10, blank=True)
-    params = models.TextField(_("inclusion parameters"), blank=True)
-    complex_rule = models.TextField(_("complex rules (over-rides all other settings)"), blank=True)
+    name = models.CharField(_("name"), max_length=100, help_text=_("a short friendly name for this repetition."))
+    description = models.TextField(_("description"), blank=True, help_text=_("a longer description of this type of repetition."))
+    common = models.BooleanField(help_text=_("common rules appear at the top of the list."))
+    frequency = models.CharField(_("frequency"), choices=freqs, max_length=10, blank=True, help_text=_("the base repetition period."))
+    params = models.TextField(_("inclusion parameters"), blank=True, help_text=_("extra params required to define this type of repetition."))
+    complex_rule = models.TextField(_("complex rules"), help_text=_("over-rides all other settings."), blank=True)
 
     class Meta:
-        verbose_name = _('rule')
-        verbose_name_plural = _('rules')
+        verbose_name = _('repetition rule')
+        verbose_name_plural = _('repetition rules')
         ordering = ('-common', 'name')
 
     def get_params(self):

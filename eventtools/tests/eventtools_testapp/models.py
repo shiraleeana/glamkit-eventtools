@@ -16,9 +16,6 @@ class LectureEventVariation(models.Model):
     location = models.TextField(max_length=100, blank=True, null=True)
     wheelchair_access = models.NullBooleanField() #implied default == None
 
-    
-
-s
 class BroadcastEvent(EventBase):
     presenter = models.TextField(max_length=100)
     studio = models.IntegerField()

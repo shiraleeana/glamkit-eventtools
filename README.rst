@@ -2,7 +2,7 @@
 Glamkit-events
 ==============
 
-An event management application designed for the GLAM (Galleries, Libraries, Museums and Archives) sector. It is a fork of the popular glamkit-schedule app.
+An event management application designed for the GLAM (Galleries, Libraries, Museums and Archives) sector. It is a fork of the popular django-schedule app.
 
 Features:
 
@@ -12,7 +12,7 @@ Features:
  * ready to use, nice user interface
  * flexible calendar template tags
  * project sample which can be launched immediately and reused in your project
-
+ 
 Installation
 ------------
 
@@ -45,7 +45,7 @@ This setting controls the behavior of :func:`Views.get_next_url`. If set, all ca
 
 SHOW_CANCELLED_OCCURRENCES
 
-This setting controls the behavior of :func:`Period.classify_occurence`. If True, then occurences that have been cancelled will be displayed with a css class of cancelled, otherwise they won't appear at all.
+This setting controls the behavior of :func:`Period.classify_occurence`. If True, then occurences that have been cancelled will be displayed with a css class of 'cancelled', otherwise they won't appear at all.
 
 Defaults to False
 

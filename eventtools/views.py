@@ -178,9 +178,9 @@ def cancel_occurrence(request, event_id,
 def get_occurrence(event_id, occurrence_id=None, year=None, month=None,
     day=None, hour=None, minute=None, second=None):
     """
-    Because occurrences don't have to be persisted, there must be two ways to
-    retrieve them. both need an event, but if its persisted the occurrence can
-    be retrieved with an id. If it is not persisted it takes a date to
+    Because occurrences can be unexceptional (ie generated from a rule) or exceptional (ie saved in the database as an exception), there must be two ways to
+    retrieve them. both need an event, but if its exceptional the occurrence can
+    be retrieved with an id. If it is generated it takes a date to
     retrieve it.  This function returns an event and occurrence regardless of
     which method is used.
     """

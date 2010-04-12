@@ -1,6 +1,6 @@
 from django.contrib import admin
 from eventtools.models import Rule
-from events.adminviews import occurrences, persist_occurrence
+from events.adminviews import occurrences, make_exceptional_occurrence
 from django.conf.urls.defaults import patterns
 
 admin.site.register(Rule)
@@ -10,10 +10,10 @@ class EventAdminBase(admin.ModelAdmin):
         urls = super(EventAdminBase, self).get_urls()
         my_urls = patterns('',
             (r'^(?P<id>\d+)/occurrences/$', self.admin_site.admin_view(occurrences)),
-            (r'^(?P<info_id>\d+)/persist/(?P<event_id>\d+)/(?P<year>\d+)/(?P<month>\d+)/(?P<day>\d+)/(?P<hour>\d+)/(?P<minute>\d+)/(?P<second>\d+)/$', self.admin_site.admin_view(persist_occurrence)),
+            (r'^(?P<info_id>\d+)/exception/(?P<event_id>\d+)/(?P<year>\d+)/(?P<month>\d+)/(?P<day>\d+)/(?P<hour>\d+)/(?P<minute>\d+)/(?P<second>\d+)/$', self.admin_site.admin_view(make_exceptional_occurrence)),
         )
         return my_urls + urls
-    list_display = ('title', 'has_multiple_occurrences',)
+    list_display = ('title', 'edit_occurrences_link',)
 
 
 class OccurrenceAdminBase(admin.ModelAdmin):

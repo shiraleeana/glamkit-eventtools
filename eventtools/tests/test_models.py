@@ -132,7 +132,7 @@ class TestModelMetaClass(TestCase):
         self.assertEqual(occ.varied_event.wheelchair_access, False)
         self.assertEqual(occ.merged_event.wheelchair_access, False)
 
-        #Now update the title of the original event. The changes in the variation should persist.
+        #Now update the title of the original event. The changes in the variation should persist in the database.
         te1.title = 'Lecture series on Lepidoptera'
         te1.save()
         
@@ -156,3 +156,14 @@ class TestModelMetaClass(TestCase):
         occ.save()
         num_variations2 = int(LectureEventVariation.objects.count())
         self.assertEqual(num_variations1, num_variations2)
+        
+    def test_occurrence_generator_weirdness(self):
+        evt = BroadcastEvent.objects.create(presenter = "Jimmy McBigmouth", studio=2)
+        gen = evt.generators.create(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
+        
+        #This didn't always work. Testing prevents regeressions!
+        self.assertTrue(evt)
+        self.assertTrue(gen)
+        self.assertEqual(evt.generators.count(), 1)
+        self.assertEqual(list(evt.generators.all()), [gen])
+        

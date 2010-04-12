@@ -54,14 +54,14 @@ class OccurrenceReplacer(object):
     have been stored in the datebase replace, in the list you are returning,
     the generated ones that are equivalent.  This class makes this easier.
     """
-    def __init__(self, persisted_occurrences):
+    def __init__(self, exceptional_occurrences):
         lookup = [((occ.event, occ.original_start, occ.original_end), occ) for
-            occ in persisted_occurrences]
+            occ in exceptional_occurrences]
         self.lookup = dict(lookup)
 
     def get_occurrence(self, occ):
         """
-        Return a persisted occurrences matching the occ and remove it from lookup since it
+        Return a exceptional occurrences set matching the occ and remove it from lookup since it
         has already been matched
         """
         return self.lookup.pop(
@@ -73,7 +73,7 @@ class OccurrenceReplacer(object):
 
     def get_additional_occurrences(self, start, end):
         """
-        Return persisted occurrences which are now in the period
+        Return exceptional occurrences which are now in the period
         """
         return [occ for key,occ in self.lookup.items() if (occ.start < end and occ.end >= start and not occ.cancelled)]
 
