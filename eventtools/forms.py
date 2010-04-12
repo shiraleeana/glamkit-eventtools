@@ -31,4 +31,4 @@ class OccurrenceForm(SpanForm):
     
     class Meta:
         model = Occurrence
-        exclude = ('original_start', 'original_end', 'event', 'cancelled')
+        exclude = ('unvaried_end_date', 'unvaried_end_time', 'unvaried_start_date', 'unvaried_start_time', 'event', 'cancelled')

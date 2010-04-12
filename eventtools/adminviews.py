@@ -1,17 +1,19 @@
 from django.shortcuts import render_to_response, get_object_or_404
-from whats_on.models import Event, Rule, OccurrenceGenerator, Occurrence
-from whats_on.periods import Month
 from django.template import RequestContext
 from django.http import HttpResponseRedirect
 import datetime
 from django.core import urlresolvers
-# from whats_on.forms import OccurrenceForm
+from eventtools.periods import Month
 
-def occurrences(request, id):
-    event = EventInfo.objects.get(pk=id)
+def occurrences(request, id, modeladmin):
+    
+    EventModel = modeladmin.model
+    
+    event = EventModel.objects.get(pk=id)
     generators = event.generators.all()
     first = event.get_first_occurrence()
     last = event.get_last_day()
+    
     if 'year' in request.GET and 'month' in request.GET:
         period = Month(generators, datetime.datetime(int(request.GET.get('year')),int(request.GET.get('month')),1))
     else:
@@ -27,13 +29,26 @@ def occurrences(request, id):
         hasnext = last > period.end 
     occurrences = period.get_occurrences()
     title = "Select an occurrence to change"
-    return render_to_response('admin/whats_on/list_occurrences.html', {"event": event, 'occurrences': occurrences, 'period': period, 'hasprev': hasprev, 'hasnext': hasnext, 'title': title}, context_instance=RequestContext(request))
+    
+    admin_url_name = ('admin:%s_%s_change' % (EventModel._meta.app_label, event.occurrence_model.__name__)).lower()
+    occ_change_url = urlresolvers.reverse(admin_url_name, args=(0,))[:-3] # we don't want a real parameter yet, so strip off the last /0/
+    
+    return render_to_response('admin/eventtools/list_occurrences.html', {"event": event, 'occurrences': occurrences, 'period': period, 'hasprev': hasprev, 'hasnext': hasnext, 'title': title, 'occ_change_url': occ_change_url }, context_instance=RequestContext(request))
 
-def make_exceptional_occurrence(request, event_id, info_id, year, month, day, hour, minute, second):
-    event = get_object_or_404(OccurrenceGenerator, id=event_id)
-    occurrence = event.get_occurrence(datetime.datetime(int(year), int(month), int(day), int(hour), int(minute), int(second)))
+def make_exceptional_occurrence(request, event_id, gen_id, year, month, day, hour, minute, second, modeladmin):
+    
+    
+    EventModel = modeladmin.model  
+    event = EventModel.objects.get(pk=event_id)
+    
+    GeneratorModel = event.generator_model #tedious that we have to do the lookup just for getting the model
+    
+    generator = get_object_or_404(GeneratorModel, id=gen_id)
+    occurrence = generator.get_occurrence(datetime.datetime(int(year), int(month), int(day), int(hour), int(minute), int(second)))
     if occurrence is None:
         raise Http404
     occurrence.save()
-    change_url = urlresolvers.reverse('admin:whats_on_occurrence_change', args=(occurrence.id,))
-    return HttpResponseRedirect(change_url)
+    # import pdb; pdb.set_trace()
+    admin_url_name = ('admin:%s_%s_change' % (EventModel._meta.app_label, EventModel.__name__)).lower()
+    event_change_url = urlresolvers.reverse(admin_url_name, args=(occurrence.id,))
+    return HttpResponseRedirect(event_change_url)

@@ -11,7 +11,7 @@ from django.db.models.base import ModelBase
 
 class OccurrenceGeneratorModelBase(ModelBase):
     """
-    When we create an OccurrenceGenerator, add to it an occurrenc_model_name so it knows what to generate.
+    When we create an OccurrenceGenerator, add to it an occurrence_model_name so it knows what to generate.
     """
     
     def __init__(cls, name, bases, attrs):
@@ -39,10 +39,11 @@ class OccurrenceGeneratorBase(models.Model):
         abstract = True
         verbose_name = 'occurrence generator'
         verbose_name_plural = 'occurrence generators'
-
+    
     def _occurrence_model(self):
         return models.get_model(self._meta.app_label, self._occurrence_model_name)
     occurrence_model = property(_occurrence_model)
+
         
     def _end_recurring_period(self):
         return self.end
@@ -179,8 +180,8 @@ class OccurrenceGeneratorBase(models.Model):
             next_occurrence = self.start
         if next_occurrence == date:
             try:
-                return Occurrence.objects.get(event = self, original_start = date)
-            except Occurrence.DoesNotExist:
+                return self.occurrence_model.objects.get(generator__event = self, unvaried_start_date = date)
+            except self.occurrence_model.DoesNotExist:
                 return self._create_occurrence(next_occurrence)
 
 
@@ -400,12 +401,15 @@ class EventModelBase(ModelBase):
             occ_name = "%s%s" % (name, "Occurrence")
             gen_name = "%s%s" % (occ_name, "Generator")
         
+            cls.add_to_class('_occurrence_model_name', occ_name)
+            cls.add_to_class('_generator_model_name', gen_name)
+        
             # Create the generator class
             # globals()[gen_name] # < injecting into globals doesn't work with some of django's import magic. We have to inject the new class directly into the module that contains the EventBase subclass. I am AMAZED that you can do this, and have it still work for future imports.
             setattr(sys.modules[cls.__module__], gen_name, type(gen_name,
-                (OccurrenceGeneratorBase,),
-                dict(__module__ = cls.__module__,),
-            )
+                    (OccurrenceGeneratorBase,),
+                    dict(__module__ = cls.__module__,),
+                )
             )
             generator_class = sys.modules[cls.__module__].__dict__[gen_name]
             
@@ -415,9 +419,9 @@ class EventModelBase(ModelBase):
             # Create the occurrence class
             # globals()[occ_name]
             setattr(sys.modules[cls.__module__], occ_name, type(occ_name,
-                (OccurrenceBase,),
-                dict(__module__ = cls.__module__,),
-            )
+                    (OccurrenceBase,),
+                    dict(__module__ = cls.__module__,),
+                )
             )
             occurrence_class = sys.modules[cls.__module__].__dict__[occ_name]
 
@@ -441,8 +445,12 @@ class EventBase(models.Model):
     class Meta:
         abstract = True
 
-    def _generator_model(self):
+    def _occurrence_model(self):
         return models.get_model(self._meta.app_label, self._occurrence_model_name)
+    occurrence_model = property(_occurrence_model)
+
+    def _generator_model(self):
+        return models.get_model(self._meta.app_label, self._generator_model_name)
     generator_model = property(_generator_model)
 
     def primary_generator(self):
