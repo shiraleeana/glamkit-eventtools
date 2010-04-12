@@ -166,4 +166,67 @@ class TestModelMetaClass(TestCase):
         self.assertTrue(gen)
         self.assertEqual(evt.generators.count(), 1)
         self.assertEqual(list(evt.generators.all()), [gen])
+    
+    def test_occurrences(self):
+        """
+        Are modified occurrences saved and retrieved properly?
+        """
+        evt = BroadcastEvent.objects.create(presenter = "Jimmy McBigmouth", studio=2)
+        #Let's start with 1 occurrence
+        gen = evt.generators.create(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
+        occ = evt.get_one_occurrence()
+    
+        self.assertEqual(occ.varied_start_time, time(13,0))
+        self.assertEqual(occ.unvaried_start_time, time(13,0))
+        self.assertEqual(occ.start_time, time(13,0))
+        self.assertEqual(occ.generator, gen)
+        
+        self.assertEqual(occ.id, None)
+        self.assertEqual(occ.is_varied, False)
+        
+        #What happens if we save it? It's persisted, but it's not varied.
+        occ.save()
+        
+        self.assertTrue(occ.id != None)
+        
+        self.assertEqual(occ.is_varied, False)
+        self.assertEqual(occ.is_cancelled, False)
+        
+        #and it doesn't have a variation event (but we could assign one if we wanted)
+        self.assertEqual(occ.varied_event, None)
+        
+        #What happens when we change the timing?
+        occ.varied_start_time = time(14,0)
+        occ.save()
+        
+        self.assertEqual(occ.is_varied, True)
+        self.assertEqual(occ.is_cancelled, False)
+        self.assertEqual(occ.start_time, time(14,0))        
+        #and let's check that re-querying returns the varied event
+        
+        occ = evt.get_one_occurrence()
+        self.assertEqual(occ.is_varied, True)
+        self.assertEqual(occ.is_cancelled, False)
+        self.assertEqual(occ.start_time, time(14,0))        
+        
+    def test_cancellation(self):
+        evt = BroadcastEvent.objects.create(presenter = "Jimmy McBigmouth", studio=2)
+        #Let's start with 1 occurrence
+        gen = evt.generators.create(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
+        occ = evt.get_one_occurrence()
+
+        self.assertEqual(occ.is_cancelled, False)
+
+        occ.cancel()
+        occ = evt.get_one_occurrence()
+        self.assertEqual(occ.is_cancelled, True)
+        
+        occ.uncancel() 
+        occ = evt.get_one_occurrence()
+        self.assertEqual(occ.is_cancelled, False)
+        
+        
+        
+        
+        
         

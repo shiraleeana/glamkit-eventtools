@@ -277,12 +277,12 @@ class MergedObject():
 class OccurrenceBase(models.Model):
     varied_start_date = models.DateField(blank=True, null=True, db_index=True)
     varied_start_time = models.TimeField(blank=True, null=True, db_index=True)
-    varied_end_date = models.DateField(blank=True, null=True, db_index=True)
+    varied_end_date = models.DateField(blank=True, null=True, db_index=True, help_text=_("if ommitted, start date is assumed"))
     varied_end_time = models.TimeField(blank=True, null=True, db_index=True)
     unvaried_start_date = models.DateField(db_index=True)
     unvaried_start_time = models.TimeField(db_index=True)
     unvaried_end_date = models.DateField(db_index=True, null=True)
-    unvaried_end_time = models.TimeField(db_index=True, null=True)
+    unvaried_end_time = models.TimeField(db_index=True, null=True, help_text=_("if ommitted, start date is assumed"))
     cancelled = models.BooleanField(_("cancelled"), default=False)
     
     class Meta:
@@ -290,7 +290,6 @@ class OccurrenceBase(models.Model):
         verbose_name_plural = _("occurrences")
         abstract = True
         unique_together = ('unvaried_start_date', 'unvaried_start_time', 'unvaried_end_date', 'unvaried_end_time')
-
 
     def _merged_event(self): #bit slow, but friendly
         return MergedObject(self.unvaried_event, self.varied_event)
@@ -307,7 +306,7 @@ class OccurrenceBase(models.Model):
     start = varied_start = property(_get_varied_start, _set_varied_start)
     
     def _get_varied_end(self):
-        return datetime.combine(self.varied_end_date, self.varied_end_time)
+        return datetime.combine(self.varied_end_date or self.varied_start_date, self.varied_end_time)
 
     def _set_varied_end(self, value):
         self.varied_end_date = value.date
@@ -325,7 +324,7 @@ class OccurrenceBase(models.Model):
     original_start = unvaried_start = property(_get_unvaried_start, _set_unvaried_start)
     
     def _get_unvaried_end(self):
-        return datetime.combine(self.unvaried_end_date, self.unvaried_end_time)
+        return datetime.combine(self.unvaried_end_date or self.unvaried_start_date, self.unvaried_end_time)
 
     def _set_unvaried_end(self, value):
         self.unvaried_end_date = value.date
@@ -333,24 +332,40 @@ class OccurrenceBase(models.Model):
     
     original_end = unvaried_end = property(_get_unvaried_end, _set_unvaried_end)    
         
+               
+    def _is_moved(self):
+        return self.original_start != self.start or self.original_end != self.end
+    is_moved = property(_is_moved)
 
-# 
-#     def moved(self):
-#         return self.original_start != self.start or self.original_end != self.end
-#     moved = property(moved)
-# 
+    def _is_cancelled(self):
+        return self.cancelled
+    is_cancelled = property(_is_cancelled)
+    
+    def _is_varied(self):
+        return self.is_moved or self.cancelled
+    is_varied = property(_is_varied)
+    
+    def _start_time(self):
+        return self.varied_start_time
+    start_time = property(_start_time)
+    
+    def _end_time(self):
+        return self.varied_end_time
+    end_time = property(_end_time)
+    
+
 #     def move(self, new_start, new_end):
 #         self.start = new_start
 #         self.end = new_end
 #         self.save()
 # 
-#     def cancel(self):
-#         self.cancelled = True
-#         self.save()
-# 
-#     def uncancel(self):
-#         self.cancelled = False
-#         self.save()
+    def cancel(self):
+        self.cancelled = True
+        self.save()
+
+    def uncancel(self):
+        self.cancelled = False
+        self.save()
 
 
     def __unicode__(self):

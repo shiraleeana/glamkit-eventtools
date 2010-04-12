@@ -25,7 +25,7 @@ class EventAdminBase(admin.ModelAdmin):
 
 class OccurrenceAdminBase(admin.ModelAdmin):
     
-    exclude = ('generator', 'unvaried_end_date', 'unvaried_end_time', 'unvaried_start_date', 'unvaried_start_time', 'cancelled')
+    exclude = ('generator', 'unvaried_end_date', 'unvaried_end_time', 'unvaried_start_date', 'unvaried_start_time',)
 
     def change_view(self, request, object_id, extra_context=None):
         """
