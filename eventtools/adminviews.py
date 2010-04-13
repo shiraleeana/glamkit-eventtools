@@ -1,6 +1,6 @@
 from django.shortcuts import render_to_response, get_object_or_404
 from django.template import RequestContext
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, Http404
 import datetime
 from django.core import urlresolvers
 from eventtools.periods import Month
@@ -11,7 +11,7 @@ def occurrences(request, id, modeladmin):
     
     event = EventModel.objects.get(pk=id)
     generators = event.generators.all()
-    first = event.get_first_occurrence()
+    first = event.get_first_occurrence().start
     last = event.get_last_day()
     
     if 'year' in request.GET and 'month' in request.GET:
@@ -33,7 +33,7 @@ def occurrences(request, id, modeladmin):
     admin_url_name = ('admin:%s_%s_change' % (EventModel._meta.app_label, event.occurrence_model.__name__)).lower()
     occ_change_url = urlresolvers.reverse(admin_url_name, args=(0,))[:-3] # we don't want a real parameter yet, so strip off the last /0/
     
-    return render_to_response('admin/eventtools/list_occurrences.html', {"event": event, 'occurrences': occurrences, 'period': period, 'hasprev': hasprev, 'hasnext': hasnext, 'title': title, 'occ_change_url': occ_change_url }, context_instance=RequestContext(request))
+    return render_to_response('admin/eventtools/list_occurrences.html', {"event": event, 'occurrences': occurrences, 'period': period, 'hasprev': hasprev, 'hasnext': hasnext, 'title': title, 'occ_change_url': occ_change_url, 'opts': EventModel._meta }, context_instance=RequestContext(request))
 
 def make_exceptional_occurrence(request, event_id, gen_id, year, month, day, hour, minute, second, modeladmin):
     
@@ -45,8 +45,7 @@ def make_exceptional_occurrence(request, event_id, gen_id, year, month, day, hou
     
     generator = get_object_or_404(GeneratorModel, id=gen_id)
     occurrence = generator.get_occurrence(datetime.datetime(int(year), int(month), int(day), int(hour), int(minute), int(second)))
-    if occurrence is None:
-        raise Http404
+
     occurrence.save()
     # import pdb; pdb.set_trace()
     admin_url_name = ('admin:%s_%s_change' % (EventModel._meta.app_label, EventModel.__name__)).lower()

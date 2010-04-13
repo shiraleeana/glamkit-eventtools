@@ -1,25 +1,22 @@
 import datetime
 import os
-from django.test import TestCase
 from django.core.urlresolvers import reverse
 from django.db import models
 from django.db.models import get_model
 from django.db.models.fields.related import ReverseSingleRelatedObjectDescriptor
-from django.conf import settings
-from django.db.models.loading import load_app
-from django.core.management import call_command
 from eventtools.tests.eventtools_testapp.models import *
 from datetime import date, datetime, time
+from _inject_app import TestCaseWithApp as TestCase
 
 class TestModelMetaClass(TestCase):
-    __module__ = __name__
 
-    def setUp(self):
-        self.old_INSTALLED_APPS = settings.INSTALLED_APPS
-        settings.INSTALLED_APPS += ['eventtools.tests.eventtools_testapp']
-        load_app('eventtools.tests.eventtools_testapp')
-        call_command('flush', verbosity=0, interactive=False)
-        call_command('syncdb', verbosity=0, interactive=False)
+    # def setUp(self):
+    #     super(TestModelMetaClass, self).setUp()
+
+    def test_model_metaclass_generation(self):
+        """
+        Test that when we create a subclass of EventBase, a corresponding subclass of OccurrenceBase is generated automatically
+        """
         self.Occ1 = get_model('eventtools_testapp', 'lectureeventoccurrence')
         self.Occ2 = get_model('eventtools_testapp', 'broadcasteventoccurrence')
         self.Occ3 = get_model('eventtools_testapp', 'lessoneventoccurrence')
@@ -30,17 +27,6 @@ class TestModelMetaClass(TestCase):
         self.Gen3 = get_model('eventtools_testapp', 'lessoneventoccurrencegenerator')
         self.gens = [self.Gen1, self.Gen2, self.Gen3]
 
-
-
-    def tearDown(self):
-        settings.INSTALLED_APPS = self.old_INSTALLED_APPS
-
-
-
-    def test_model_metaclass_generation(self):
-        """
-        Test that when we create a subclass of EventBase, a corresponding subclass of OccurrenceBase is generated automatically
-        """
         for (occ, gen,) in zip(self.occs, self.gens):
             #Check that for each EventBase model defined, an Occurrence and an OccurrenceGenerator are created.
             self.assertTrue((occ != None))
@@ -54,6 +40,7 @@ class TestModelMetaClass(TestCase):
             self.assertEqual(gen._occurrence_model_name, occ.__name__.lower())
 
 
+class TestModel(TestCase):
     def test_event_without_variation(self):
         """
         Events that have no variation class defined still work (and that it is not allowed to try to set a variation)
@@ -61,7 +48,7 @@ class TestModelMetaClass(TestCase):
         
         subject = 'Django testing for n00bs'
         lesson = LessonEvent.objects.create(subject=subject)
-        gen = lesson.generators.create(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
+        gen = lesson.create_generator(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
         occ = lesson.get_one_occurrence()
         self.assertEqual(occ.varied_event, None)
         self.assertRaises(AttributeError, getattr, occ.varied_event, 'subject')
@@ -77,13 +64,15 @@ class TestModelMetaClass(TestCase):
         # Create an event, a generator, and get (the only possible) occurrence from the generator.
         te1 = LectureEvent.objects.create(location='The lecture hall', title='Lecture series on Butterflies')
         self.assertTrue(te1.wheelchair_access) # The original event has wheelchair access
-        gen = te1.generators.create(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
+        gen = te1.create_generator(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
         self.assertTrue(gen)
         occ = te1.get_one_occurrence()
         self.assertTrue(occ)
         
         #Test that the occurrence is the one we expect
-        self.assertEqual(occ, models.get_model('eventtools_testapp', 'lectureeventoccurrence')(generator=gen, varied_start_date=date(2010, 1, 1), varied_start_time=time(13, 0), varied_end_date=None, varied_end_time=time(14, 0), unvaried_start_date=date(2010, 1, 1), unvaried_start_time=time(13, 0), unvaried_end_date=None, unvaried_end_time=time(14, 0)))
+        expected = LectureEventOccurrence(generator=gen, unvaried_start_date=date(2010, 1, 1), unvaried_start_time=time(13, 0), unvaried_end_time=time(14, 0))
+
+        self.assertEqual(occ, expected)
 
         #and that the occurrence's unvaried event shares properties with te1
         self.assertTrue(isinstance(occ.unvaried_event, LectureEvent))
@@ -150,7 +139,7 @@ class TestModelMetaClass(TestCase):
         TODO: expand this so to check changing the time of an exceptional occurrence works the same way.
         """
         te1 = LectureEvent.objects.create(location='The lecture hall', title='Lecture series on Butterflies')
-        te1.generators.create(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
+        te1.create_generator(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
         occ = te1.get_one_occurrence()
         num_variations1 = int(LectureEventVariation.objects.count())
         occ.save()
@@ -159,7 +148,7 @@ class TestModelMetaClass(TestCase):
         
     def test_occurrence_generator_weirdness(self):
         evt = BroadcastEvent.objects.create(presenter = "Jimmy McBigmouth", studio=2)
-        gen = evt.generators.create(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
+        gen = evt.create_generator(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
         
         #This didn't always work. Testing prevents regeressions!
         self.assertTrue(evt)
@@ -173,7 +162,7 @@ class TestModelMetaClass(TestCase):
         """
         evt = BroadcastEvent.objects.create(presenter = "Jimmy McBigmouth", studio=2)
         #Let's start with 1 occurrence
-        gen = evt.generators.create(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
+        gen = evt.create_generator(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
         occ = evt.get_one_occurrence()
     
         self.assertEqual(occ.varied_start_time, time(13,0))
@@ -190,7 +179,7 @@ class TestModelMetaClass(TestCase):
         self.assertTrue(occ.id != None)
         
         self.assertEqual(occ.is_varied, False)
-        self.assertEqual(occ.is_cancelled, False)
+        self.assertEqual(occ.cancelled, False)
         
         #and it doesn't have a variation event (but we could assign one if we wanted)
         self.assertEqual(occ.varied_event, None)
@@ -200,30 +189,30 @@ class TestModelMetaClass(TestCase):
         occ.save()
         
         self.assertEqual(occ.is_varied, True)
-        self.assertEqual(occ.is_cancelled, False)
+        self.assertEqual(occ.cancelled, False)
         self.assertEqual(occ.start_time, time(14,0))        
         #and let's check that re-querying returns the varied event
         
         occ = evt.get_one_occurrence()
         self.assertEqual(occ.is_varied, True)
-        self.assertEqual(occ.is_cancelled, False)
+        self.assertEqual(occ.cancelled, False)
         self.assertEqual(occ.start_time, time(14,0))        
         
     def test_cancellation(self):
         evt = BroadcastEvent.objects.create(presenter = "Jimmy McBigmouth", studio=2)
         #Let's start with 1 occurrence
-        gen = evt.generators.create(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
+        gen = evt.create_generator(first_start_date=date(2010, 1, 1), first_start_time=time(13, 0), first_end_date=None, first_end_time=time(14, 0))
         occ = evt.get_one_occurrence()
 
-        self.assertEqual(occ.is_cancelled, False)
+        self.assertEqual(occ.cancelled, False)
 
         occ.cancel()
         occ = evt.get_one_occurrence()
-        self.assertEqual(occ.is_cancelled, True)
+        self.assertEqual(occ.cancelled, True)
         
         occ.uncancel() 
         occ = evt.get_one_occurrence()
-        self.assertEqual(occ.is_cancelled, False)
+        self.assertEqual(occ.cancelled, False)
         
         
         

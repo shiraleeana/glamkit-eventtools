@@ -32,6 +32,12 @@ class Period(object):
         self.start = start
         self.end = end
         self.events = events
+        
+        if self.events:
+            self.OccurrenceModel = events[0].OccurrenceModel
+        else:
+            self.OccurrenceModel = None
+        
         self.occurrence_pool = occurrence_pool
         if parent_exceptional_occurrences is not None:
             self._exceptional_occurrences = parent_exceptional_occurrences
@@ -62,11 +68,13 @@ class Period(object):
         return occs
     occurrences = property(cached_get_sorted_occurrences)
 
-    def get_exeptional_occurrences(self):
+    def get_exceptional_occurrences(self):
         if hasattr(self, '_exceptional_occurrences'):
             return self._exceptional_occurrences
         else:
-            self._exceptional_occurrences = Occurrence.objects.filter(event__in = self.events)
+            if not self.OccurrenceModel:
+                return []
+            self._exceptional_occurrences = self.OccurrenceModel.objects.filter(generator__event__in = self.events)
             return self._exceptional_occurrences
 
     def classify_occurrence(self, occurrence):

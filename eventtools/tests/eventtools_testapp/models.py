@@ -2,6 +2,9 @@ from eventtools.models import EventBase
 from django.db import models
 from django.utils.translation import ugettext, ugettext_lazy as _
 
+class TestEvent(EventBase):
+    title = models.CharField(_("Title"), max_length = 255)
+    # for django_schedule tests
 
 class LectureEvent(EventBase):
     title = models.CharField(_("Title"), max_length = 255)
