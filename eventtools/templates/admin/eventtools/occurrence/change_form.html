@@ -5,14 +5,11 @@
 <!-- BREADCRUMBS -->
 {% block breadcrumbs %}{% if not is_popup %}
 <div class="breadcrumbs">
-TODO: breadcrumbs
-{% comment %}
      <a href="../../../">{% trans "Home" %}</a> &rsaquo;
      <a href="../../">{{ app_label|capfirst|escape }}</a> &rsaquo;
-     <a href="{# url admin:whats_on_eventinfo_changelist #}">Events</a> &rsaquo;
-     <a href="{# url admin:whats_on_eventinfo_change original.event.info.id #}">{{ original.event.info }}</a> &rsaquo;
-     {% if has_change_permission %}<a href="{# url admin:whats_on_eventinfo_change original.event.info.id #}occurrences/">{{ opts.verbose_name_plural|capfirst }}</a>{% else %}{{ opts.verbose_name_plural|capfirst }}{% endif %} &rsaquo; 
-     {{ original.start|date:"jS M Y" }}
-{% endcomment %}
+     <a href="{{ event_model_url }}">{{ original.generator.event.opts.verbose_name_plural|capfirst }}</a> &rsaquo;
+     <a href="{{ event_change_url }}">{{ original.generator.event }}</a> &rsaquo;
+     {% if has_change_permission %}<a href="{{ event_change_url }}occurrences/">{{ opts.verbose_name_plural|capfirst }}</a>{% else %}{{ opts.verbose_name_plural|capfirst }}{% endif %} &rsaquo; 
+     {{ original.unvaried_range_string }}
 </div>
 {% endif %}{% endblock %}

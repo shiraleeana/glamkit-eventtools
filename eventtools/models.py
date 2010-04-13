@@ -1,3 +1,4 @@
+# −*− coding: UTF−8 −*−
 from django.db import models
 from django.utils.translation import ugettext, ugettext_lazy as _
 from django.template.defaultfilters import date as date_filter
@@ -405,6 +406,20 @@ class OccurrenceBase(models.Model):
             'day': self.varied_start.strftime('%a, %d %b %Y'),
         }
 
+    def unvaried_range_string(self):
+        return ugettext(u"%(start)s–%(end)s") % {
+            'start': self.unvaried_start.strftime('%a, %d %b %Y %H:%M'),
+            'end': self.unvaried_end.strftime('%a, %d %b %Y %H:%M'),
+        }
+
+    def varied_range_string(self):
+        return ugettext(u"%(start)s–%(end)s") % {
+            'start': self.varied_start.strftime('%a, %d %b %Y %H:%M'),
+            'end': self.varied_end.strftime('%a, %d %b %Y %H:%M'),
+        }
+
+
+
     def __cmp__(self, other): #used for sorting occurrences.
         rank = cmp(self.start, other.start)
         if rank == 0:
@@ -489,6 +504,10 @@ class EventBase(models.Model):
     class Meta:
         abstract = True
 
+    def _opts(self):
+        return self._meta
+    opts = property(_opts) #for use in templates (without underscore necessary)
+
     def _occurrence_model(self):
         return models.get_model(self._meta.app_label, self._occurrence_model_name)
     OccurrenceModel = property(_occurrence_model)
@@ -543,7 +562,7 @@ class EventBase(models.Model):
         if self.has_zero_generators:
             return _('no occurrences! <a href="%s/">add one here</a>' % self.id)
         else:
-           return '<a href="%s/occurrences/">%s</a>' % (self.id, unicode(_("edit occurrences")))
+           return '<a href="%s/occurrences/">%s</a>' % (self.id, unicode(_("view/edit occurrences")))
             
         # return _('(<a href="%s/">edit </a>)')
     edit_occurrences_link.allow_tags = True
