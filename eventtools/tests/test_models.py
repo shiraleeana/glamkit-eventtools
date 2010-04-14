@@ -220,7 +220,6 @@ class TestModel(TestCase):
         #have we got the FKs in place
         self.assertTrue(hasattr(BroadcastEventVariation, 'unvaried_event'))
         self.assertTrue(hasattr(evt, 'variations'))
-
      
         # let's try it out
         var_event = evt.create_variation(presenter = "Amy Sub")

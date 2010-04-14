@@ -575,7 +575,7 @@ class EventBase(models.Model):
         else:
             return "N/A"
         
-    edit_occurrences_link.short_description = _("# Variations")
+    variations_count.short_description = _("# Variations")
     
     def create_generator(self, *args, **kwargs):
         if kwargs.has_key('start'):
@@ -635,8 +635,13 @@ class EventVariationModelBase(ModelBase):
 class EventVariationBase(models.Model):
     __metaclass__ = EventVariationModelBase
     
-    reason_for_variation = models.CharField(_("Short reason for variation"), max_length = 255, help_text=_("this won't normally be shown to visitors, but is useful for identifying this variation in lists"))
+    reason = models.CharField(_("Short reason for variation"), max_length = 255, help_text=_("this won't normally be shown to visitors, but is useful for identifying this variation in lists"))
 
+    def __unicode__(self):
+        return self.reason
+        
+    class Meta:
+        abstract = True
 
 freqs = (
     ("YEARLY", _("Yearly")),
