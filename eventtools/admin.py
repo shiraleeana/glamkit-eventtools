@@ -7,6 +7,9 @@ from django.core import urlresolvers
 
 admin.site.register(Rule)
 
+class EventVariationInlineBase(admin.StackedInline):
+    model = None
+
 class EventAdminBase(admin.ModelAdmin):
     """
     Need to add views:
@@ -20,10 +23,15 @@ class EventAdminBase(admin.ModelAdmin):
               url(r'^(?P<event_id>\d+)/create_exception/(?P<gen_id>\d+)/(?P<year>\d{4})-(?P<month>\d{1,2})-(?P<day>\d{1,2})/(?P<hour>\d{1,2})-(?P<minute>\d{1,2})-(?P<second>\d{1,2})/$', self.admin_site.admin_view(make_exceptional_occurrence), {'modeladmin': self}),
         )
         return my_urls + super_urls
-    list_display = ('title', 'edit_occurrences_link',)
+    list_display = ('title', 'edit_occurrences_link', 'variations_count')
 
 class OccurrenceAdminBase(admin.ModelAdmin):
 
+    # actions = ['make_exceptions']
+    
+    # def make_exceptions(self, request, queryset):
+    # 
+    # make_exceptions.short_description = "Add a variation to selected occurrences"
 
     def change_view(self, request, object_id, extra_context=None):
         """

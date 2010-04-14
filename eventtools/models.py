@@ -484,12 +484,10 @@ class EventModelBase(ModelBase):
             )
             occurrence_class = sys.modules[cls.__module__].__dict__[occ_name]
 
-            # import pdb; pdb.set_trace()
-            
-
             occurrence_class.add_to_class('generator', models.ForeignKey(generator_class, related_name = 'occurrences'))
             if hasattr(cls, 'varied_by'):
-                occurrence_class.add_to_class('_varied_event', models.ForeignKey(cls.varied_by, related_name = 'occurrences', null=True))
+               occurrence_class.add_to_class('_varied_event', models.ForeignKey(cls.varied_by, related_name = 'occurrences', null=True))
+               # we need to add an unvaried_event FK into the variation class, BUT at this point the variation class hasn't been defined yet. For now, let's insist that this is done by using a base class for variation.
 
         super(EventModelBase, cls).__init__(name, bases, attrs)
         
@@ -560,13 +558,24 @@ class EventBase(models.Model):
         """ An admin link """
         # if self.has_multiple_occurrences:
         if self.has_zero_generators:
-            return _('no occurrences! <a href="%s/">add one here</a>' % self.id)
+            return _('no occurrences yet (<a href="%s/">add a generator here</a>)' % self.id)
         else:
            return '<a href="%s/occurrences/">%s</a>' % (self.id, unicode(_("view/edit occurrences")))
             
         # return _('(<a href="%s/">edit </a>)')
     edit_occurrences_link.allow_tags = True
     edit_occurrences_link.short_description = _("Occurrences")
+    
+    def variations_count(self):
+        """
+        returns the number of variations that this event has
+        """
+        if self.__class__.varied_by:
+            return self.variations.count()
+        else:
+            return "N/A"
+        
+    edit_occurrences_link.short_description = _("# Variations")
     
     def create_generator(self, *args, **kwargs):
         if kwargs.has_key('start'):
@@ -582,6 +591,10 @@ class EventBase(models.Model):
                 'first_end_time': end.time()
             })
         return self.generators.create(*args, **kwargs)
+    
+    def create_variation(self, *args, **kwargs):
+        kwargs['unvaried_event'] = self
+        return self.variations.create(*args, **kwargs)
     
     def get_absolute_url(self):
         return "/event/%s/" % self.id
@@ -607,6 +620,23 @@ class EventBase(models.Model):
         else:
             period = Period(self.generators.all(), datetime.datetime.now(), datetime.datetime.now() + datetime.timedelta(days=28))		
         return period.get_occurrences()
+
+class EventVariationModelBase(ModelBase):
+    def __init__(cls, name, bases, attrs):
+        if name != 'EventVariationBase': # This should only fire if this is a subclass
+            #Inject an unvaried_event FK if none is defined.
+            #Uses the unDRY cls.varies to name the class to FK to.
+            if not attrs.has_key('unvaried_event'):
+                cls.add_to_class('unvaried_event', models.ForeignKey(cls.varies, related_name="variations"))
+                
+        super(EventVariationModelBase, cls).__init__(name, bases, attrs)
+
+
+class EventVariationBase(models.Model):
+    __metaclass__ = EventVariationModelBase
+    
+    reason_for_variation = models.CharField(_("Short reason for variation"), max_length = 255, help_text=_("this won't normally be shown to visitors, but is useful for identifying this variation in lists"))
+
 
 freqs = (
     ("YEARLY", _("Yearly")),

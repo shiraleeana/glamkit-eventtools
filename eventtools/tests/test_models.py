@@ -39,7 +39,6 @@ class TestModelMetaClass(TestCase):
             #...and that the occurrence model is linked properly to the generator
             self.assertEqual(gen._occurrence_model_name, occ.__name__.lower())
 
-
 class TestModel(TestCase):
     def test_event_without_variation(self):
         """
@@ -87,7 +86,7 @@ class TestModel(TestCase):
         self.assertRaises(AttributeError, getattr, occ.varied_event, 'location')
         
         #Now create a variation with a different location
-        occ.varied_event = LectureEventVariation.objects.create(location='The foyer')
+        occ.varied_event = te1.create_variation(location='The foyer')
         
         #Check the properties of the varied event, and that the merged event uses those to override the unvaried event
         self.assertEqual(occ.varied_event.location, 'The foyer')
@@ -215,7 +214,23 @@ class TestModel(TestCase):
         self.assertEqual(occ.cancelled, False)
         
         
+    def test_variation_model(self):
+        evt = BroadcastEvent.objects.create(presenter = "Jimmy McBigmouth", studio=2) 
         
+        #have we got the FKs in place
+        self.assertTrue(hasattr(BroadcastEventVariation, 'unvaried_event'))
+        self.assertTrue(hasattr(evt, 'variations'))
+
+     
+        # let's try it out
+        var_event = evt.create_variation(presenter = "Amy Sub")
+        self.assertEqual(list(evt.variations.all()), [var_event])
         
+        # we can also do it this way
         
+        var_event_2 = BroadcastEventVariation.objects.create(unvaried_event=evt, presenter = "Alan Loco")
+        self.assertEqual(set(evt.variations.all()), set([var_event, var_event_2]))
         
+        # but not on an event that doesn't have a varied_by
+        lesson = LessonEvent.objects.create(subject="canons")
+        self.assertRaises(AttributeError, lesson.create_variation, {'subject': 'cannons'})
