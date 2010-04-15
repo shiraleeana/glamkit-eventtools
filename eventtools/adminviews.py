@@ -6,6 +6,7 @@ from django.http import HttpResponseRedirect
 import datetime
 from django.core import urlresolvers
 # from whats_on.forms import OccurrenceForm
+from django.utils.translation import ugettext as _
 
 def occurrences(request, id):
     event = EventInfo.objects.get(pk=id)
@@ -26,7 +27,7 @@ def occurrences(request, id):
     else:
         hasnext = last > period.end 
     occurrences = period.get_occurrences()
-    title = "Select an occurrence to change"
+    title = _("Select an occurrence to change")
     return render_to_response('admin/whats_on/list_occurrences.html', {"event": event, 'occurrences': occurrences, 'period': period, 'hasprev': hasprev, 'hasnext': hasnext, 'title': title}, context_instance=RequestContext(request))
 
 # def edit_occurrence(request, event_id, info_id, 

@@ -22,18 +22,18 @@ class OccurrenceGeneratorBase(models.Model):
     
     __metaclass__ = OccurrenceGeneratorModelBase
     
-    first_start_date = models.DateField()
-    first_start_time = models.TimeField()
-    first_end_date = models.DateField(null = True, blank = True)
-    first_end_time = models.TimeField(null = True, blank = True)
-    rule = models.ForeignKey('Rule', verbose_name="Repetition rule", null = True, blank = True, help_text="Select '----' for a one-off event.")
-    repeat_until = models.DateTimeField(null = True, blank = True, help_text="This date is ignored for one-off events.")
+    first_start_date = models.DateField(_('first start date'))
+    first_start_time = models.TimeField(_('first start time'))
+    first_end_date = models.DateField(_('first end date'), null = True, blank = True)
+    first_end_time = models.TimeField(_('first end time'), null = True, blank = True)
+    rule = models.ForeignKey('Rule', verbose_name=_("repetition rule"), null = True, blank = True, help_text=_("Select '----' for a one-off event."))
+    repeat_until = models.DateTimeField(null = True, blank = True, help_text=_("This date is ignored for one-off events."))
     
     class Meta:
         ordering = ('first_start_date', 'first_start_time')
         abstract = True
-        verbose_name = 'occurrence generator'
-        verbose_name_plural = 'occurrence generators'
+        verbose_name = _('occurrence generator')
+        verbose_name_plural = _('occurrence generators')
 
     def _occurrence_model(self):
         return models.get_model(self._meta.app_label, self._occurrence_model_name)
@@ -269,14 +269,14 @@ class MergedObject():
         
 
 class OccurrenceBase(models.Model):
-    varied_start_date = models.DateField(blank=True, null=True, db_index=True)
-    varied_start_time = models.TimeField(blank=True, null=True, db_index=True)
-    varied_end_date = models.DateField(blank=True, null=True, db_index=True)
-    varied_end_time = models.TimeField(blank=True, null=True, db_index=True)
-    unvaried_start_date = models.DateField(db_index=True)
-    unvaried_start_time = models.TimeField(db_index=True)
-    unvaried_end_date = models.DateField(db_index=True, null=True)
-    unvaried_end_time = models.TimeField(db_index=True, null=True)
+    varied_start_date = models.DateField(_("varied start date"), blank=True, null=True, db_index=True)
+    varied_start_time = models.TimeField(_("varied start time"), blank=True, null=True, db_index=True)
+    varied_end_date = models.DateField(_("varied end date"), blank=True, null=True, db_index=True)
+    varied_end_time = models.TimeField(_("varied end time"), blank=True, null=True, db_index=True)
+    unvaried_start_date = models.DateField(_("unvaried start date"), db_index=True)
+    unvaried_start_time = models.TimeField(_("unvaried start time"), db_index=True)
+    unvaried_end_date = models.DateField(_("unvaried end date"), db_index=True, null=True)
+    unvaried_end_time = models.TimeField(_("unvaried end time"), db_index=True, null=True)
     cancelled = models.BooleanField(_("cancelled"), default=False)
     
     class Meta:

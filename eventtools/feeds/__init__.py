@@ -6,12 +6,13 @@ from events.feeds.atom import Feed
 from events.feeds.icalendar import ICalendarFeed
 from django.http import HttpResponse
 import datetime, itertools
+from django.utils.translation import ugettext_lazy as _
 
 class UpcomingEventsFeed(Feed):
     feed_id = "upcoming"
     
     def feed_title(self, obj):
-        return "Upcoming Events for %s" % obj.name
+        return _("Upcoming Events for %s") % obj.name
     
     def get_object(self, bits):
         if len(bits) != 1:
