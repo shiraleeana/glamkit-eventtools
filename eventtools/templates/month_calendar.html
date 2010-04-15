@@ -1,10 +1,11 @@
 {% include 'month_header.html' %}
+{% load month_calendar %}
 
 <tbody>
     {% for week in month_calendar %}
 <tr> 
 {% for day in week %}
-<td{% if day.classes %} class="{{ day.classes|join:" "}}"{% endif %}>{{ day.date|date:"j" }}</td> 
+{% annotated_day day day.classes %}
 {% endfor %}
 </tr> 
 {% endfor %}

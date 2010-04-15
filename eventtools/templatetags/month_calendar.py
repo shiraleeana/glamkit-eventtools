@@ -44,3 +44,7 @@ def month_calendar(month=None, week_start=6, selected_start=None, selected_end=N
     return {'month': month, 'month_calendar': month_calendar, 'today': today, 'links': links}
 
 register.inclusion_tag('month_calendar.html')(month_calendar)
+
+def annotated_day(day, classes=None):
+    return {'day': day, 'classes': classes}
+register.inclusion_tag('annotated_day.html')(annotated_day)

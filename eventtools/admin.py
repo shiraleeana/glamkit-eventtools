@@ -13,7 +13,7 @@ class EventAdminBase(admin.ModelAdmin):
             (r'^(?P<info_id>\d+)/persist/(?P<event_id>\d+)/(?P<year>\d+)/(?P<month>\d+)/(?P<day>\d+)/(?P<hour>\d+)/(?P<minute>\d+)/(?P<second>\d+)/$', self.admin_site.admin_view(persist_occurrence)),
         )
         return my_urls + urls
-    list_display = ('title', 'has_multiple_occurrences',)
+    list_display = ('has_multiple_occurrences',)
 
 
 class OccurrenceAdminBase(admin.ModelAdmin):
