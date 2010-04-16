@@ -4,6 +4,7 @@ from django.http import HttpResponseRedirect, Http404
 import datetime
 from django.core import urlresolvers
 from eventtools.periods import Month
+from django.utils.translation import ugettext as _
 
 def occurrences(request, id, modeladmin):
     
@@ -28,7 +29,7 @@ def occurrences(request, id, modeladmin):
     else:
         hasnext = last > period.end 
     occurrences = period.get_occurrences()
-    title = "Select an occurrence to change"
+    title = _("Select an occurrence to change")
     
     admin_url_name = ('admin:%s_%s_change' % (EventModel._meta.app_label, event.OccurrenceModel.__name__)).lower()
     occ_change_url = urlresolvers.reverse(admin_url_name, args=(0,))[:-3] # we don't want a real parameter yet, so strip off the last /0/

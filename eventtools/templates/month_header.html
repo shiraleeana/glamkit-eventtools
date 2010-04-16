@@ -1,3 +1,4 @@
+{% load i18n %}
 <thead>
 {% comment %}
 ############################################################
@@ -9,7 +10,7 @@
 ############################################################
 {% endcomment %}
     <tr> 
-        <th><a href="?date={{ links.prev|date:"Y.m.j" }}" title="view previous month">&lt;</a></th><th colspan="5">{{ month|date:"F, Y" }}</th><th><a href="?date={{ links.next|date:"Y.m.j" }}" title="view next month">&gt;</a></th> 
+    <th><a href="?date={{ links.prev|date:"Y.m.j" }}" title="{% trans "view previous month" %}">&lt;</a></th><th colspan="5">{{ month|date:"F, Y" }}</th><th><a href="?date={{ links.next|date:"Y.m.j" }}" title="{% trans "view next month" %}">&gt;</a></th> 
     </tr> 
 
 {% comment %}
