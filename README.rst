@@ -1,6 +1,6 @@
-==============
-Glamkit-events
-==============
+==================
+Glamkit-eventtools
+==================
 
 An event management application designed for the GLAM (Galleries, Libraries, Museums and Archives) sector. It is part of the GLAMkit project <http://glamkit.org/>`_.
 

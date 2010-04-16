@@ -4,3 +4,4 @@
 /project_sample/project_sample.db
 /docs/_build/
 *.DS_Store
+glamkit_eventtools.egg-info

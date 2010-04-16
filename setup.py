@@ -3,21 +3,14 @@
 from setuptools import setup, find_packages
  
 setup(
-    name='glamkit-events',
-    version='0.5b',
+    name='glamkit-eventtools',
+    version='0.5.0',
     description='An event management app for Django.',
+    long_description=open('README.rst').read(),
     author='Thomas Ashelford',
     author_email='thomas@interaction.net.au',
-    url='http://github.com/glamkit/glamkit-events/tree/master',
-    packages=[
-        'events',
-        'events.feeds',
-        'events.management',
-        'events.management.commands',
-        'events.models',
-        'events.templatetags',
-        'events.tests',
-    ],
+    url='http://github.com/glamkit/glamkit-eventtools',
+    packages=find_packages(),
     include_package_data=True,
     zip_safe=False,
     classifiers=['Development Status :: 4 - Beta',
@@ -30,5 +23,5 @@ setup(
                  'Topic :: Utilities'],
     install_requires=['setuptools', 'vobject', 'python-dateutil'],
     license='BSD',
-    test_suite = "events.tests",
+    test_suite = "eventtools.tests",
 )

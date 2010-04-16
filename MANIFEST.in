@@ -1,4 +1,2 @@
-recursive-include docs *
-recursive-include events/templates *
-recursive-include events/models/fixtures *.json
-recursive-include project_sample *
+recursive-include eventtools/templates *
+recursive-include eventtools/locale *
